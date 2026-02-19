@@ -1,0 +1,151 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Browser Use",
+  "projectDescription": "Make websites accessible for AI agents - automate browser tasks with LLMs using Python.",
+  "theme": "aspen",
+  "primaryColor": "#6366F1",
+  "lightColor": "#818CF8",
+  "darkColor": "#4F46E5",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/agents",
+              "concepts/browser",
+              "concepts/tools",
+              "concepts/llm-providers"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/basic-usage",
+              "guides/custom-tools",
+              "guides/authentication",
+              "guides/data-extraction",
+              "guides/prompting",
+              "guides/production"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/sandbox",
+              "advanced/cloud-browser",
+              "advanced/actor-api",
+              "advanced/structured-output",
+              "advanced/performance"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core Classes",
+            "pages": [
+              "api/agent",
+              "api/browser",
+              "api/tools",
+              "api/action-result"
+            ]
+          },
+          {
+            "group": "LLM Providers",
+            "pages": [
+              "api/llm/chat-browser-use",
+              "api/llm/chat-openai",
+              "api/llm/chat-anthropic",
+              "api/llm/chat-google",
+              "api/llm/chat-ollama"
+            ]
+          },
+          {
+            "group": "Actions",
+            "pages": [
+              "api/actions/navigation",
+              "api/actions/interaction",
+              "api/actions/extraction",
+              "api/actions/files"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "api/config/agent-settings",
+              "api/config/browser-settings",
+              "api/config/sandbox-settings"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Examples",
+        "groups": [
+          {
+            "group": "Use Cases",
+            "pages": [
+              "examples/form-filling",
+              "examples/data-scraping",
+              "examples/shopping",
+              "examples/research"
+            ]
+          },
+          {
+            "group": "Integration",
+            "pages": [
+              "examples/playwright",
+              "examples/mcp",
+              "examples/parallel-tasks",
+              "examples/2fa"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "AI-powered browser automation with LLM agents",
+    "Support for multiple LLM providers (OpenAI, Anthropic, Google, etc.)",
+    "Custom tool creation and integration",
+    "Cloud browser support with stealth mode",
+    "Sandbox execution for production deployment",
+    "Data extraction and structured output",
+    "Authentication handling and session management",
+    "CLI for direct browser control"
+  ],
+  "publicApiSurface": [
+    "Agent",
+    "Browser",
+    "BrowserSession",
+    "Tools",
+    "Controller",
+    "ActionResult",
+    "ChatBrowserUse",
+    "ChatOpenAI",
+    "ChatAnthropic",
+    "ChatGoogle",
+    "ChatOllama",
+    "ChatGroq",
+    "ChatMistral",
+    "sandbox",
+    "Page",
+    "Element",
+    "Mouse",
+    "AgentHistoryList",
+    "SystemPrompt"
+  ]
+}
