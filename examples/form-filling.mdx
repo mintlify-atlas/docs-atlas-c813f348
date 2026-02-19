@@ -1,0 +1,183 @@
+---
+title: Form Filling
+description: Automate web form submissions with Browser Use
+icon: pen-to-square
+---
+
+Browser Use can automatically fill out and submit web forms, making it perfect for automating repetitive data entry tasks.
+
+## Basic Form Filling
+
+This example demonstrates how to fill out a contact form with specific information:
+
+```python
+import asyncio
+from browser_use import Agent, ChatBrowserUse
+from dotenv import load_dotenv
+
+load_dotenv()
+
+async def main():
+    # Initialize the model
+    llm = ChatBrowserUse(model='bu-2-0')
+    
+    # Define a form filling task
+    task = """
+    Go to https://httpbin.org/forms/post and fill out the contact form with:
+    - Customer name: John Doe
+    - Telephone: 555-123-4567
+    - Email: john.doe@example.com
+    - Size: Medium
+    - Topping: cheese
+    - Delivery time: now
+    - Comments: This is a test form submission
+    
+    Then submit the form and tell me what response you get.
+    """
+    
+    # Create and run the agent
+    agent = Agent(task=task, llm=llm)
+    await agent.run()
+
+if __name__ == '__main__':
+    asyncio.run(main())
+```
+
+## How It Works
+
+<Steps>
+  <Step title="Navigate to Form">
+    The agent navigates to the target URL containing the form
+  </Step>
+  
+  <Step title="Identify Form Fields">
+    Browser Use automatically identifies interactive form elements on the page
+  </Step>
+  
+  <Step title="Fill Fields">
+    The agent fills each field with the specified data in the correct order
+  </Step>
+  
+  <Step title="Submit Form">
+    Once all fields are filled, the agent submits the form and returns the result
+  </Step>
+</Steps>
+
+## Multi-Field Forms
+
+For complex forms with multiple sections, you can provide detailed instructions:
+
+```python
+task = """
+Fill out the registration form with:
+
+Personal Information:
+- First Name: Jane
+- Last Name: Smith
+- Email: jane.smith@example.com
+- Phone: (555) 123-4567
+
+Address:
+- Street: 123 Main St
+- City: San Francisco
+- State: CA
+- ZIP: 94102
+
+Preferences:
+- Newsletter: Yes
+- Contact method: Email
+
+Then click the Submit button and confirm the registration.
+"""
+
+agent = Agent(task=task, llm=ChatBrowserUse())
+await agent.run()
+```
+
+## Handling Different Input Types
+
+Browser Use can handle various form input types:
+
+### Text Inputs
+```python
+task = "Fill the username field with 'john_doe' and password with 'SecurePass123'"
+```
+
+### Dropdowns
+```python
+task = "Select 'United States' from the country dropdown and 'California' from the state dropdown"
+```
+
+### Radio Buttons
+```python
+task = "Select 'Male' for gender and 'Yes' for newsletter subscription"
+```
+
+### Checkboxes
+```python
+task = "Check the boxes for 'Terms of Service' and 'Privacy Policy'"
+```
+
+### File Uploads
+```python
+task = "Upload the file 'resume.pdf' to the file upload field"
+```
+
+## Error Handling
+
+Browser Use automatically handles common form issues:
+
+<CodeGroup>
+```python Retry on Failure
+agent = Agent(
+    task="Fill out the form...",
+    llm=ChatBrowserUse(),
+    max_failures=3  # Retry up to 3 times if errors occur
+)
+```
+
+```python Wait for Elements
+task = """
+Fill out the form at example.com:
+1. Wait 2 seconds for the page to fully load
+2. Fill in the username and password
+3. If the submit button is not clickable, wait another 2 seconds
+4. Click submit
+"""
+```
+</CodeGroup>
+
+## Form Validation
+
+The agent can verify that forms were filled correctly:
+
+```python
+task = """
+Fill out the contact form with my information:
+- Name: John Doe
+- Email: john@example.com
+
+After filling, verify that:
+1. All required fields are filled (look for red asterisks)
+2. Email format is valid (no error messages)
+3. Submit the form only if validation passes
+"""
+```
+
+## Tips for Form Filling
+
+<Warning>
+**Important**: Be specific about field names and values to ensure accurate form filling.
+</Warning>
+
+<Note>
+- Use exact field labels as they appear on the page
+- For dropdowns, specify the exact option text
+- Allow time for page loads and dynamic content
+- Test with the form's actual validation rules
+</Note>
+
+## Related Examples
+
+- [2FA Authentication](/examples/2fa) - Handle two-factor authentication forms
+- [Shopping Automation](/examples/shopping) - Fill checkout forms with payment details

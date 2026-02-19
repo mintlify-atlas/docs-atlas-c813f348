@@ -1,0 +1,346 @@
+---
+title: 'Basic Usage'
+description: 'Master the fundamentals of Browser Use'
+icon: 'play'
+---
+
+## Getting Started
+
+Browser Use makes web automation simple with an AI-powered agent that understands natural language tasks. This guide covers essential patterns for everyday automation.
+
+## Your First Agent
+
+<Steps>
+  <Step title="Create a Simple Task">
+    Start with a basic agent that performs web searches:
+
+    ```python
+    from browser_use import Agent, ChatBrowserUse
+    import asyncio
+
+    async def main():
+        agent = Agent(
+            task="Go to Hacker News and find the top post",
+            llm=ChatBrowserUse(),
+        )
+        result = await agent.run()
+        print(result.final_result())
+
+    asyncio.run(main())
+    ```
+
+    <Tip>
+      We recommend using **ChatBrowserUse** - it's optimized for browser automation with the highest accuracy, fastest speed, and lowest token cost.
+    </Tip>
+  </Step>
+
+  <Step title="Understand the Results">
+    The agent returns an `AgentHistoryList` with complete execution details:
+
+    ```python
+    history = await agent.run()
+
+    # Access execution data
+    print(history.final_result())        # Last extracted content
+    print(history.is_done())             # True if task completed
+    print(history.urls())                # All visited URLs
+    print(history.action_names())        # Actions performed
+    print(history.total_duration_seconds())  # Total time
+    ```
+  </Step>
+
+  <Step title="Configure Basic Options">
+    Control agent behavior with simple parameters:
+
+    ```python
+    agent = Agent(
+        task="Find Python tutorials",
+        llm=ChatBrowserUse(),
+        max_steps=50,              # Limit execution steps
+        use_vision=True,           # Enable screenshot analysis
+        flash_mode=True,           # Speed up execution
+    )
+
+    history = await agent.run(max_steps=100)
+    ```
+  </Step>
+</Steps>
+
+## Common Task Patterns
+
+### Navigation & Search
+
+<CodeGroup>
+```python Direct Navigation
+from browser_use import Agent, ChatBrowserUse
+
+agent = Agent(
+    task="Navigate to wikipedia.org and search for 'Python programming'",
+    llm=ChatBrowserUse(),
+)
+result = await agent.run()
+```
+
+```python Multi-Step Search
+agent = Agent(
+    task="""
+    1. Go to DuckDuckGo
+    2. Search for 'browser automation'
+    3. Open the first result
+    4. Summarize the page content
+    """,
+    llm=ChatBrowserUse(),
+)
+result = await agent.run()
+```
+</CodeGroup>
+
+### Form Interaction
+
+```python
+agent = Agent(
+    task="""
+    1. Go to example.com/contact
+    2. Fill in the name field with 'John Doe'
+    3. Fill in email with 'john@example.com'
+    4. Fill in message with 'Hello world'
+    5. Click submit button
+    """,
+    llm=ChatBrowserUse(),
+)
+result = await agent.run()
+```
+
+<Tip>
+  Be specific about form fields. Reference them by their labels or placeholder text for best results.
+</Tip>
+
+### Working with Tabs
+
+```python
+agent = Agent(
+    task="""
+    1. Open GitHub in a new tab
+    2. Open Reddit in another new tab
+    3. Switch to the Reddit tab
+    4. Search for 'programming'
+    5. Switch back to GitHub tab
+    """,
+    llm=ChatBrowserUse(),
+)
+result = await agent.run()
+```
+
+## Browser Configuration
+
+### Visible Browser
+
+Watch the agent work in real-time:
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+browser = Browser(
+    headless=False,  # Show browser window
+    window_size={'width': 1280, 'height': 720},
+)
+
+agent = Agent(
+    task="Your task here",
+    llm=ChatBrowserUse(),
+    browser=browser,
+)
+```
+
+### Custom Browser Settings
+
+<CodeGroup>
+```python Window Size
+browser = Browser(
+    headless=False,
+    window_size={'width': 1920, 'height': 1080},
+    window_position={'width': 0, 'height': 0},
+)
+```
+
+```python Slow Down Actions
+browser = Browser(
+    wait_between_actions=2.0,  # Wait 2 seconds between actions
+    minimum_wait_page_load_time=1.0,  # Minimum page load wait
+)
+```
+
+```python Keep Browser Open
+browser = Browser(
+    keep_alive=True,  # Don't close browser after completion
+)
+```
+</CodeGroup>
+
+## Initial Actions
+
+Set up the browser state before the agent starts:
+
+```python
+from browser_use import Agent, ChatBrowserUse
+
+initial_actions = [
+    {'navigate': {'url': 'https://www.google.com', 'new_tab': True}},
+    {'navigate': {'url': 'https://en.wikipedia.org', 'new_tab': True}},
+]
+
+agent = Agent(
+    task="Compare search results for 'AI' on both sites",
+    initial_actions=initial_actions,
+    llm=ChatBrowserUse(),
+)
+
+result = await agent.run()
+```
+
+<Warning>
+  Initial actions run **without LLM** - they execute deterministically before the agent takes control.
+</Warning>
+
+## Error Handling
+
+```python
+from browser_use import Agent, ChatBrowserUse
+import asyncio
+
+async def main():
+    agent = Agent(
+        task="Navigate to invalid-site.com",
+        llm=ChatBrowserUse(),
+        max_failures=5,  # Retry up to 5 times on errors
+    )
+    
+    try:
+        result = await agent.run()
+        
+        if result.has_errors():
+            print("Errors occurred:", result.errors())
+        else:
+            print("Success:", result.final_result())
+    
+    except Exception as e:
+        print(f"Fatal error: {e}")
+
+asyncio.run(main())
+```
+
+## Extracting Information
+
+Use the `extract` action to pull data from pages:
+
+```python
+agent = Agent(
+    task="""
+    1. Go to news.ycombinator.com
+    2. Use extract action to get the top 5 post titles and URLs
+    """,
+    llm=ChatBrowserUse(),
+)
+
+result = await agent.run()
+data = result.final_result()
+print(data)
+```
+
+<Tip>
+  Explicitly mention "use extract action" in your task for best results. See the [Data Extraction guide](/guides/data-extraction) for advanced patterns.
+</Tip>
+
+## Agent History Analysis
+
+```python
+history = await agent.run()
+
+# Debugging information
+print(f"Completed: {history.is_done()}")
+print(f"Steps taken: {history.number_of_steps()}")
+print(f"Duration: {history.total_duration_seconds()}s")
+print(f"URLs visited: {history.urls()}")
+print(f"Actions: {history.action_names()}")
+
+# Get screenshots (if vision enabled)
+for i, screenshot in enumerate(history.screenshots()):
+    with open(f'step_{i}.png', 'wb') as f:
+        f.write(base64.b64decode(screenshot))
+```
+
+## Speed Optimization
+
+### Flash Mode
+
+Sacrifice some accuracy for 2-3x faster execution:
+
+```python
+agent = Agent(
+    task="Quick search task",
+    llm=ChatBrowserUse(),
+    flash_mode=True,  # Skip evaluation and detailed thinking
+)
+```
+
+<Warning>
+  Flash mode disables the agent's internal reasoning process. Use for simple, repetitive tasks only.
+</Warning>
+
+### Vision Control
+
+```python
+# Auto mode - only use vision when needed
+agent = Agent(
+    task="Your task",
+    llm=ChatBrowserUse(),
+    use_vision="auto",  # Default
+)
+
+# Disable vision completely for speed
+agent = Agent(
+    task="Your task",
+    llm=ChatBrowserUse(),
+    use_vision=False,  # Faster, text-only
+)
+```
+
+## Sync vs Async
+
+<CodeGroup>
+```python Async (Recommended)
+import asyncio
+from browser_use import Agent, ChatBrowserUse
+
+async def main():
+    agent = Agent(task="Your task", llm=ChatBrowserUse())
+    result = await agent.run()
+    return result
+
+asyncio.run(main())
+```
+
+```python Sync (Quick Scripts)
+from browser_use import Agent, ChatBrowserUse
+
+agent = Agent(task="Your task", llm=ChatBrowserUse())
+result = agent.run_sync()  # Blocking call
+```
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Custom Tools" icon="wrench" href="/guides/custom-tools">
+    Extend agent capabilities with custom functions
+  </Card>
+  <Card title="Data Extraction" icon="database" href="/guides/data-extraction">
+    Master advanced data extraction patterns
+  </Card>
+  <Card title="Authentication" icon="key" href="/guides/authentication">
+    Handle logins and session management
+  </Card>
+  <Card title="Production" icon="rocket" href="/guides/production">
+    Deploy to production with @sandbox
+  </Card>
+</CardGroup>

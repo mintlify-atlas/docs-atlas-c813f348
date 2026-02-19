@@ -1,0 +1,598 @@
+---
+title: 'Actor API'
+description: 'Low-level CDP-based browser control for deterministic automation'
+---
+
+## Overview
+
+The Actor API provides direct access to Chrome DevTools Protocol (CDP) for precise, deterministic browser control. While the Agent uses LLMs for autonomous navigation, the Actor API lets you write explicit automation scripts with full control over browser actions.
+
+<Info>
+  Actor API is a Playwright-like library built on CDP. Use it for **deterministic automation** where you need precise control over every browser action.
+</Info>
+
+## Key Concepts
+
+- **Page**: Represents a browser tab or iframe
+- **Element**: A DOM element with interaction methods
+- **Mouse**: Mouse control for clicks, drags, and movements
+- **Utils**: Helper methods for common operations
+
+## Quick Start
+
+```python
+from browser_use import Browser
+from browser_use.actor import Page, Element
+
+# Get browser session
+browser = Browser()
+await browser.start()
+
+# Get current page (tab)
+page = await browser.get_page()
+
+# Navigate and interact
+await page.goto("https://example.com")
+
+# Find and click element
+element = await page.get_element_by_prompt("login button", llm=my_llm)
+if element:
+    await element.click()
+
+# Type into input
+input_element = await page.get_element_by_prompt("email input", llm=my_llm)
+if input_element:
+    await input_element.fill("user@example.com")
+```
+
+## Page API
+
+The `Page` class provides tab-level operations.
+
+### Navigation
+
+```python
+page = await browser.get_page()
+
+# Navigate to URL
+await page.goto("https://github.com")
+
+# Get current URL
+current_url = await page.get_url()
+print(f"Current URL: {current_url}")
+
+# Navigate history
+await page.go_back()
+await page.go_forward()
+
+# Reload page
+await page.reload()
+```
+
+### Screenshots
+
+```python
+# Take full page screenshot
+screenshot_base64 = await page.screenshot(format='png')
+
+# JPEG with quality
+screenshot_base64 = await page.screenshot(format='jpeg', quality=80)
+```
+
+### JavaScript Execution
+
+```python
+# Execute JavaScript
+result = await page.evaluate(
+    "() => document.title"
+)
+print(f"Page title: {result}")
+
+# With parameters
+result = await page.evaluate(
+    "(selector) => document.querySelector(selector).textContent",
+    "h1"
+)
+
+# Async operations
+result = await page.evaluate("""
+    async () => {
+        const response = await fetch('/api/data');
+        return response.json();
+    }
+""")
+```
+
+<Warning>
+  JavaScript code **must** start with `(...args) =>` arrow function format. Regular function declarations won't work.
+</Warning>
+
+### Keyboard Input
+
+```python
+# Press single key
+await page.press('Enter')
+await page.press('Escape')
+await page.press('Tab')
+
+# Key combinations
+await page.press('Control+A')  # Select all
+await page.press('Control+C')  # Copy
+await page.press('Meta+V')     # Paste (Mac)
+```
+
+### Viewport
+
+```python
+# Set viewport size
+await page.set_viewport_size(width=1920, height=1080)
+```
+
+### Element Finding
+
+```python
+# CSS selectors
+elements = await page.get_elements_by_css_selector('button.primary')
+for elem in elements:
+    await elem.click()
+
+# AI-powered element finding
+submit_button = await page.get_element_by_prompt(
+    "submit button",
+    llm=my_llm
+)
+if submit_button:
+    await submit_button.click()
+
+# Must-find variant (raises error if not found)
+login_btn = await page.must_get_element_by_prompt(
+    "login button",
+    llm=my_llm
+)
+await login_btn.click()
+```
+
+### Content Extraction
+
+```python
+from pydantic import BaseModel
+
+class Article(BaseModel):
+    title: str
+    author: str
+    published_date: str
+    content: str
+
+# Extract structured content using LLM
+article = await page.extract_content(
+    prompt="Extract the article details",
+    structured_output=Article,
+    llm=my_llm
+)
+
+print(f"Title: {article.title}")
+print(f"Author: {article.author}")
+```
+
+From `browser_use/actor/page.py:491-554`.
+
+## Element API
+
+The `Element` class represents a DOM element with interaction methods.
+
+### Clicking
+
+```python
+element = await page.get_element_by_prompt("search button", llm=my_llm)
+
+# Simple click
+await element.click()
+
+# Click with modifiers
+await element.click(
+    button='left',
+    click_count=1,
+    modifiers=['Control']  # Ctrl+click
+)
+
+# Double click
+await element.click(click_count=2)
+
+# Right click
+await element.click(button='right')
+```
+
+### Text Input
+
+```python
+input_elem = await page.get_element_by_prompt("email input", llm=my_llm)
+
+# Fill with clearing existing text
+await input_elem.fill("user@example.com", clear=True)
+
+# Append without clearing
+await input_elem.fill(" additional text", clear=False)
+```
+
+The `fill` method:
+- Focuses the element
+- Clears existing text (if `clear=True`)
+- Types character-by-character with human-like delays
+- Handles special characters and modifiers
+
+From `browser_use/actor/element.py:353-507`.
+
+### Hover
+
+```python
+# Hover to reveal dropdown
+menu = await page.get_element_by_prompt("user menu", llm=my_llm)
+await menu.hover()
+```
+
+### Focus
+
+```python
+# Focus input field
+input_field = await page.get_element_by_prompt("search box", llm=my_llm)
+await input_field.focus()
+```
+
+### Select Options
+
+```python
+# Select dropdown options
+select = await page.get_element_by_prompt("country selector", llm=my_llm)
+await select.select_option(['United States'])
+
+# Multiple selections
+select_multiple = await page.get_element_by_prompt("skills selector", llm=my_llm)
+await select_multiple.select_option(['Python', 'JavaScript', 'TypeScript'])
+```
+
+### Drag and Drop
+
+```python
+source = await page.get_element_by_prompt("draggable item", llm=my_llm)
+target = await page.get_element_by_prompt("drop zone", llm=my_llm)
+
+# Drag to center of target
+await source.drag_to(target)
+
+# Drag to specific position
+await source.drag_to(
+    target,
+    target_position={'x': 10, 'y': 10}  # Offset from target's top-left
+)
+```
+
+### Properties
+
+```python
+element = await page.get_element_by_prompt("product link", llm=my_llm)
+
+# Get attributes
+href = await element.get_attribute('href')
+data_id = await element.get_attribute('data-id')
+
+# Get bounding box
+box = await element.get_bounding_box()
+if box:
+    print(f"Position: ({box['x']}, {box['y']})")
+    print(f"Size: {box['width']}x{box['height']}")
+```
+
+### Element Screenshots
+
+```python
+element = await page.get_element_by_prompt("product image", llm=my_llm)
+
+# Screenshot just this element
+image_data = await element.screenshot(format='png')
+```
+
+### JavaScript Evaluation on Element
+
+```python
+element = await page.get_element_by_prompt("product card", llm=my_llm)
+
+# Execute JS with element as 'this'
+text_content = await element.evaluate(
+    "() => this.textContent"
+)
+
+# Modify element
+await element.evaluate(
+    "(color) => this.style.backgroundColor = color",
+    "yellow"
+)
+
+# Get computed style
+color = await element.evaluate(
+    "() => getComputedStyle(this).color"
+)
+```
+
+## Mouse API
+
+Low-level mouse control.
+
+```python
+page = await browser.get_page()
+mouse = await page.mouse
+
+# Move mouse
+await mouse.move(x=100, y=200)
+
+# Click at position
+await mouse.click(x=300, y=400)
+
+# Drag
+await mouse.down(x=100, y=100)
+await mouse.move(x=200, y=200)
+await mouse.up()
+```
+
+## Using Actor in Tools
+
+Combine Actor API with Agent tools for hybrid automation:
+
+```python
+from browser_use import Tools, ActionResult, BrowserSession
+from browser_use.actor import Page
+
+tools = Tools()
+
+@tools.action('Click the login button deterministically')
+async def deterministic_login(browser_session: BrowserSession) -> ActionResult:
+    # Get page actor
+    page: Page = await browser_session.get_page()
+    
+    # Find login button using AI
+    login_btn = await page.get_element_by_prompt(
+        "login or sign in button",
+        llm=browser_session._llm
+    )
+    
+    if not login_btn:
+        return ActionResult(error="Login button not found")
+    
+    # Deterministic click
+    await login_btn.click()
+    
+    return ActionResult(
+        extracted_content="Clicked login button",
+        success=True
+    )
+
+agent = Agent(
+    task="Log in and check account balance",
+    llm=my_llm,
+    tools=tools,
+)
+```
+
+<Note>
+  When using Actor API in tools, the parameter must be named `browser_session: BrowserSession`, not `browser: Browser`.
+</Note>
+
+## Real-World Examples
+
+### Form Filling
+
+```python
+from browser_use import Browser
+from browser_use.actor import Page
+
+async def fill_registration_form(
+    page: Page,
+    email: str,
+    password: str,
+    name: str,
+    llm
+):
+    # Navigate
+    await page.goto("https://example.com/register")
+    
+    # Fill form using AI element detection
+    email_input = await page.get_element_by_prompt("email input", llm=llm)
+    await email_input.fill(email)
+    
+    password_input = await page.get_element_by_prompt("password input", llm=llm)
+    await password_input.fill(password)
+    
+    name_input = await page.get_element_by_prompt("full name input", llm=llm)
+    await name_input.fill(name)
+    
+    # Submit
+    submit_btn = await page.get_element_by_prompt("submit button", llm=llm)
+    await submit_btn.click()
+    
+    # Wait for navigation
+    await asyncio.sleep(2)
+    
+    # Check success
+    success_msg = await page.evaluate(
+        "() => document.body.textContent.includes('Welcome')"
+    )
+    
+    return success_msg
+```
+
+### Data Extraction
+
+```python
+from pydantic import BaseModel
+
+class Product(BaseModel):
+    name: str
+    price: float
+    rating: float
+    reviews: int
+
+async def extract_product_data(page: Page, llm) -> Product:
+    await page.goto("https://example.com/product/123")
+    
+    # Extract structured data
+    product = await page.extract_content(
+        prompt="Extract product name, price, rating, and number of reviews",
+        structured_output=Product,
+        llm=llm
+    )
+    
+    return product
+```
+
+### File Upload
+
+```python
+async def upload_avatar(page: Page, file_path: str, llm):
+    await page.goto("https://example.com/profile")
+    
+    # Find file input
+    file_input = await page.get_element_by_prompt(
+        "profile picture upload or avatar upload input",
+        llm=llm
+    )
+    
+    # Use tool for file upload (Actor API doesn't directly support file upload)
+    # Better to use Agent's upload_file action
+    pass
+```
+
+### Infinite Scroll
+
+```python
+async def collect_all_items(page: Page, llm) -> list[str]:
+    await page.goto("https://example.com/feed")
+    
+    items = []
+    last_count = 0
+    
+    while True:
+        # Extract current items
+        current_items = await page.evaluate("""
+            () => Array.from(document.querySelectorAll('.item'))
+                .map(el => el.textContent)
+        """)
+        
+        if len(current_items) == last_count:
+            break  # No new items
+        
+        items.extend(current_items[last_count:])
+        last_count = len(current_items)
+        
+        # Scroll to bottom
+        await page.evaluate(
+            "() => window.scrollTo(0, document.body.scrollHeight)"
+        )
+        await asyncio.sleep(2)  # Wait for load
+    
+    return items
+```
+
+### Shadow DOM
+
+```python
+async def interact_with_shadow_dom(page: Page):
+    # Access shadow DOM using JavaScript
+    shadow_text = await page.evaluate("""
+        () => {
+            const host = document.querySelector('#shadow-host');
+            const shadow = host.shadowRoot;
+            return shadow.querySelector('.shadow-content').textContent;
+        }
+    """)
+    
+    # Click inside shadow DOM
+    await page.evaluate("""
+        () => {
+            const host = document.querySelector('#shadow-host');
+            const shadow = host.shadowRoot;
+            shadow.querySelector('button').click();
+        }
+    """)
+```
+
+## Best Practices
+
+### 1. Element Detection with AI
+
+```python
+# Use AI for element detection (flexible)
+element = await page.get_element_by_prompt(
+    "button that says submit, send, or post",
+    llm=my_llm
+)
+
+# Not: hardcoded selectors (brittle)
+elements = await page.get_elements_by_css_selector('button#submit')
+```
+
+### 2. Error Handling
+
+```python
+try:
+    element = await page.must_get_element_by_prompt("login button", llm=my_llm)
+    await element.click()
+except RuntimeError as e:
+    print(f"Element not found: {e}")
+    # Fallback action
+```
+
+### 3. Waiting for Actions
+
+```python
+await element.click()
+await asyncio.sleep(0.5)  # Wait for page change
+
+# Or check for condition
+for _ in range(10):
+    url = await page.get_url()
+    if 'dashboard' in url:
+        break
+    await asyncio.sleep(0.5)
+```
+
+### 4. Structured Extraction
+
+```python
+# ✅ Use Pydantic models for type safety
+class SearchResults(BaseModel):
+    query: str
+    results: list[str]
+
+data = await page.extract_content(
+    prompt="Extract search query and result titles",
+    structured_output=SearchResults,
+    llm=my_llm
+)
+
+# Not: unstructured text parsing
+```
+
+## CDP Access
+
+For advanced use cases, access raw CDP:
+
+```python
+from browser_use import Browser
+
+browser = Browser()
+await browser.start()
+
+# Get CDP client
+cdp_client = browser.cdp_client
+
+# Send raw CDP commands
+result = await cdp_client.send.Network.getCookies(
+    session_id=await page.session_id
+)
+print(result['cookies'])
+```
+
+## See Also
+
+- [Tools API](/customize/tools/basics) - Custom agent actions
+- [Browser Configuration](/customize/browser/all-parameters) - Browser setup
+- [Agent API](/essentials/agent/basics) - High-level AI automation

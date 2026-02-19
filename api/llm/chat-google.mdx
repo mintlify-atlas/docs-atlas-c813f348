@@ -1,0 +1,419 @@
+---
+title: 'ChatGoogle'
+description: 'Google Gemini LLM provider for Browser Use'
+---
+
+## Overview
+
+ChatGoogle provides integration with Google's Gemini models including Gemini 2.0 Flash, Gemini 2.5 Pro, and Gemini 3 series with advanced thinking capabilities.
+
+## Basic Usage
+
+```python
+from browser_use import Agent, ChatGoogle
+import asyncio
+
+async def main():
+    llm = ChatGoogle(model='gemini-flash-latest')
+    agent = Agent(
+        task="Find the number 1 post on Show HN",
+        llm=llm,
+    )
+    await agent.run()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## Configuration
+
+### Required Parameters
+
+<ParamField path="model" type="str" required>
+  Gemini model to use. Available options:
+  
+  **Latest Models:**
+  - `gemini-flash-latest`: Latest Flash model (recommended)
+  - `gemini-flash-lite-latest`: Lightweight Flash model
+  
+  **Gemini 3 Series:**
+  - `gemini-3-pro-preview`: Most powerful with advanced reasoning
+  - `gemini-3-flash-preview`: Fast with thinking capabilities
+  
+  **Gemini 2.5 Series:**
+  - `gemini-2.5-pro`: High-performance Pro model
+  - `gemini-2.5-flash`: Fast and efficient
+  - `gemini-2.5-flash-lite`: Lightweight option
+  
+  **Gemini 2.0 Series:**
+  - `gemini-2.0-flash`: Standard Flash
+  - `gemini-2.0-flash-exp`: Experimental Flash
+  - `gemini-2.0-flash-lite-preview-02-05`: Lite preview
+  
+  **Gemma Models:**
+  - `gemma-3-27b-it`, `gemma-3-4b`, `gemma-3-12b`: Open models
+  - `gemma-3n-e2b`, `gemma-3n-e4b`: Nano models
+</ParamField>
+
+### Model Parameters
+
+<ParamField path="temperature" type="float" default="0.5">
+  Sampling temperature (0.0 to 2.0). Controls randomness in responses.
+</ParamField>
+
+<ParamField path="top_p" type="float" default="None">
+  Nucleus sampling parameter (0.0 to 1.0).
+</ParamField>
+
+<ParamField path="seed" type="int" default="None">
+  Random seed for deterministic output.
+</ParamField>
+
+<ParamField path="max_output_tokens" type="int" default="8096">
+  Maximum tokens in the response.
+</ParamField>
+
+### Thinking Configuration
+
+<ParamField path="thinking_budget" type="int" default="None">
+  For Gemini 2.5 models: Control thinking tokens.
+  - `-1`: Dynamic/auto (default)
+  - `0`: Disable thinking
+  - `> 0`: Specific token count for thinking
+</ParamField>
+
+<ParamField path="thinking_level" type="str" default="None">
+  For Gemini 3 models: Control reasoning depth.
+  - Gemini 3 Pro: `low`, `high`
+  - Gemini 3 Flash: `minimal`, `low`, `medium`, `high`
+</ParamField>
+
+### Client Parameters
+
+<ParamField path="api_key" type="str" default="None">
+  Google API key. Defaults to `GOOGLE_API_KEY` environment variable.
+  
+  <Note>
+    Get your free API key at [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
+  </Note>
+</ParamField>
+
+<ParamField path="vertexai" type="bool" default="None">
+  Whether to use Vertex AI instead of AI Studio.
+</ParamField>
+
+<ParamField path="credentials" type="Credentials" default="None">
+  Google Cloud credentials object for Vertex AI.
+</ParamField>
+
+<ParamField path="project" type="str" default="None">
+  Google Cloud project ID for Vertex AI.
+</ParamField>
+
+<ParamField path="location" type="str" default="None">
+  Google Cloud region for Vertex AI (e.g., `us-central1`).
+</ParamField>
+
+### Advanced Parameters
+
+<ParamField path="include_system_in_user" type="bool" default="False">
+  Include system messages in the first user message (for models without system instruction support).
+</ParamField>
+
+<ParamField path="supports_structured_output" type="bool" default="True">
+  Use native JSON mode. Set to `False` for prompt-based fallback.
+</ParamField>
+
+<ParamField path="max_retries" type="int" default="5">
+  Number of retries for retryable errors.
+</ParamField>
+
+<ParamField path="retryable_status_codes" type="list[int]" default="[429, 500, 502, 503, 504]">
+  HTTP status codes to retry on.
+</ParamField>
+
+<ParamField path="retry_base_delay" type="float" default="1.0">
+  Base delay in seconds for exponential backoff.
+</ParamField>
+
+<ParamField path="retry_max_delay" type="float" default="60.0">
+  Maximum delay between retries.
+</ParamField>
+
+## Advanced Usage
+
+### Gemini 3 with Thinking
+
+```python
+from browser_use import Agent, ChatGoogle
+
+# Gemini 3 Pro with high reasoning
+llm = ChatGoogle(
+    model='gemini-3-pro-preview',
+    thinking_level='high',  # 'low' or 'high' for Pro
+    max_output_tokens=8192,
+)
+
+# Gemini 3 Flash with all thinking levels
+llm = ChatGoogle(
+    model='gemini-3-flash-preview',
+    thinking_level='medium',  # 'minimal', 'low', 'medium', or 'high'
+)
+
+agent = Agent(
+    task="Complex reasoning task",
+    llm=llm,
+)
+```
+
+### Gemini 2.5 with Dynamic Thinking
+
+```python
+from browser_use import Agent, ChatGoogle
+
+llm = ChatGoogle(
+    model='gemini-2.5-pro',
+    thinking_budget=-1,  # Dynamic thinking (default)
+    # Or set specific token budget:
+    # thinking_budget=1024,  # Use 1024 tokens for thinking
+)
+
+agent = Agent(task="Your task", llm=llm)
+```
+
+### Structured Output
+
+```python
+from browser_use import Agent, ChatGoogle
+from pydantic import BaseModel
+
+class Product(BaseModel):
+    name: str
+    price: float
+    rating: float
+    reviews: int
+
+llm = ChatGoogle(
+    model='gemini-flash-latest',
+    supports_structured_output=True,  # Use native JSON mode
+)
+
+agent = Agent(
+    task="Extract product information",
+    llm=llm,
+    output_model_schema=Product,
+)
+```
+
+### Using Vertex AI
+
+```python
+from browser_use import Agent, ChatGoogle
+from google.oauth2 import service_account
+
+credentials = service_account.Credentials.from_service_account_file(
+    'path/to/service-account.json'
+)
+
+llm = ChatGoogle(
+    model='gemini-flash-latest',
+    vertexai=True,
+    credentials=credentials,
+    project='your-project-id',
+    location='us-central1',
+)
+
+agent = Agent(task="Your task", llm=llm)
+```
+
+### With Code Execution Tool
+
+```python
+from browser_use import Agent, ChatGoogle
+from google.genai import types
+
+llm = ChatGoogle(
+    model='gemini-2.0-flash-exp',
+    config={
+        'tools': [types.Tool(code_execution=types.ToolCodeExecution())]
+    },
+)
+
+agent = Agent(
+    task="Calculate complex statistics",
+    llm=llm,
+)
+```
+
+## Environment Setup
+
+```bash .env
+# For AI Studio (free)
+GOOGLE_API_KEY=your_api_key_here
+
+# For Vertex AI
+GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
+GOOGLE_CLOUD_PROJECT=your-project-id
+GOOGLE_CLOUD_LOCATION=us-central1
+```
+
+## Error Handling
+
+```python
+from browser_use import Agent, ChatGoogle
+from browser_use.llm.exceptions import ModelProviderError
+import asyncio
+
+try:
+    llm = ChatGoogle(
+        model='gemini-flash-latest',
+        max_retries=3,
+    )
+    agent = Agent(task="Your task", llm=llm)
+    result = await agent.run()
+except ModelProviderError as e:
+    print(f"Error: {e.message}")
+    if e.status_code == 429:
+        print("Rate limit hit, will retry automatically")
+    elif e.status_code == 403:
+        print("API key issue or forbidden resource")
+except asyncio.CancelledError:
+    print("Request timed out or was cancelled")
+```
+
+## Properties
+
+### provider
+
+Returns the provider name: `"google"`
+
+```python
+llm = ChatGoogle(model='gemini-flash-latest')
+print(llm.provider)  # "google"
+```
+
+### name
+
+Returns the model name.
+
+```python
+llm = ChatGoogle(model='gemini-2.5-pro')
+print(llm.name)  # "gemini-2.5-pro"
+```
+
+## Methods
+
+### get_client()
+
+Returns a `genai.Client` instance.
+
+```python
+llm = ChatGoogle(model='gemini-flash-latest')
+client = llm.get_client()
+# Use client directly for advanced operations
+```
+
+### ainvoke()
+
+Asynchronously invoke the model with messages.
+
+```python
+from browser_use.llm.messages import SystemMessage, UserMessage
+
+llm = ChatGoogle(model='gemini-flash-latest')
+
+messages = [
+    SystemMessage(content="You are a helpful assistant"),
+    UserMessage(content="What is Browser Use?")
+]
+
+response = await llm.ainvoke(messages)
+print(response.completion)     # String response
+print(response.usage)          # Token usage
+print(response.stop_reason)    # Why generation stopped
+```
+
+#### Parameters
+
+- **messages** (`list[BaseMessage]`): List of messages
+- **output_format** (`type[T] | None`): Optional Pydantic model for structured output
+
+#### Returns
+
+`ChatInvokeCompletion[T] | ChatInvokeCompletion[str]` with:
+- `completion`: Response content
+- `usage`: Token usage including:
+  - `prompt_tokens`: Input tokens
+  - `completion_tokens`: Output tokens (includes thinking tokens for Gemini 2.5/3)
+  - `prompt_cached_tokens`: Cached tokens
+  - `prompt_image_tokens`: Tokens from images
+- `stop_reason`: Completion reason
+
+## Token Usage
+
+Gemini includes thinking tokens in completion counts:
+
+```python
+response = await llm.ainvoke(messages)
+
+if response.usage:
+    # For Gemini 2.5/3: completion_tokens includes thinking_tokens
+    total_output = response.usage.completion_tokens
+    print(f"Total output (including thinking): {total_output}")
+    
+    # Check for cached tokens
+    if response.usage.prompt_cached_tokens:
+        print(f"Cached tokens: {response.usage.prompt_cached_tokens}")
+    
+    # Check for image tokens
+    if response.usage.prompt_image_tokens:
+        print(f"Image tokens: {response.usage.prompt_image_tokens}")
+```
+
+## Thinking Models
+
+### Gemini 3 Pro
+- Uses `thinking_level`: `low` or `high`
+- Best for complex reasoning
+- Validates unsupported thinking configurations
+
+### Gemini 3 Flash
+- Supports all `thinking_level` values: `minimal`, `low`, `medium`, `high`
+- Defaults to `thinking_budget=-1` if no thinking_level set
+- Balances speed and reasoning
+
+### Gemini 2.5
+- Uses `thinking_budget` only
+- `-1` for dynamic thinking (default)
+- `0` to disable
+- Set specific token count for controlled thinking
+
+```python
+# Gemini 3 Pro example
+llm = ChatGoogle(
+    model='gemini-3-pro-preview',
+    thinking_level='high',
+)
+
+# Gemini 2.5 example
+llm = ChatGoogle(
+    model='gemini-2.5-pro',
+    thinking_budget=-1,  # Dynamic
+)
+```
+
+## Model Comparison
+
+| Model | Speed | Cost | Thinking | Context |
+|-------|-------|------|----------|----------|
+| Gemini 3 Pro | Medium | High | Advanced | 2M |
+| Gemini 3 Flash | Fast | Low | Advanced | 1M |
+| Gemini 2.5 Pro | Medium | Medium | Good | 2M |
+| Gemini 2.5 Flash | Fast | Low | Good | 1M |
+| Gemini 2.0 Flash | Fast | Low | Basic | 1M |
+
+## Related
+
+- [ChatBrowserUse](/api/llm/chat-browser-use) - Recommended provider
+- [ChatOpenAI](/api/llm/chat-openai)
+- [ChatAnthropic](/api/llm/chat-anthropic)

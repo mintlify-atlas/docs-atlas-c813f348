@@ -1,0 +1,495 @@
+---
+title: 'Cloud Browser'
+description: 'Use Browser Use Cloud for scalable, captcha-resistant automation'
+---
+
+## Overview
+
+Browser Use Cloud provides production-ready remote browsers with residential proxies, anti-detection features, and automatic profile management. These browsers run in a managed environment optimized for automation, with built-in captcha solving and bot detection bypass.
+
+<Note>
+  Cloud browsers are **recommended for production** - they have the best performance, lowest latency, and can bypass captchas and other bot-detection systems.
+</Note>
+
+## Quick Start
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+# Simplest usage - automatic provisioning
+browser = Browser(use_cloud=True)
+
+agent = Agent(
+    task="Your task here",
+    llm=ChatBrowserUse(),
+    browser=browser,
+)
+
+await agent.run()
+```
+
+Get your API key at [cloud.browser-use.com/new-api-key](https://cloud.browser-use.com/new-api-key) (includes $10 free credits).
+
+## Configuration
+
+### Basic Cloud Browser
+
+```python
+from browser_use import Browser
+import os
+
+# Set API key
+os.environ['BROWSER_USE_API_KEY'] = 'your_key'
+
+# Auto-provision cloud browser
+browser = Browser(
+    use_cloud=True,
+    cloud_timeout=30,  # Session timeout in minutes (max 240 for paid users)
+)
+```
+
+### With Authentication Profile
+
+Sync your local cookies to the cloud, then use authenticated browsers:
+
+```bash
+# One-time setup: Sync local browser state
+export BROWSER_USE_API_KEY=your_key
+curl -fsSL https://browser-use.com/profile.sh | sh
+```
+
+This opens a browser where you log into your accounts. You'll get a `profile_id`.
+
+```python
+browser = Browser(
+    cloud_profile_id='your-profile-id',  # Browser has your auth cookies
+    cloud_timeout=60,
+)
+
+agent = Agent(
+    task="Check my Gmail inbox",  # Already authenticated!
+    browser=browser,
+    llm=ChatBrowserUse(),
+)
+await agent.run()
+```
+
+<Info>
+  Profiles sync cookies, localStorage, and session data. Your cloud browser will be logged into all your accounts automatically.
+</Info>
+
+### With Proxy
+
+Use residential proxies to bypass geo-restrictions and captchas:
+
+```python
+browser = Browser(
+    cloud_proxy_country_code='us',  # Route through US residential proxy
+)
+
+# Available countries: us, uk, fr, it, jp, au, de, fi, ca, in
+```
+
+### Full Configuration
+
+```python
+from browser_use import Browser, ChatBrowserUse
+from browser_use.agent.service import Agent
+
+browser = Browser(
+    # Cloud settings
+    use_cloud=True,
+    cloud_profile_id='your-profile-id',
+    cloud_proxy_country_code='us',
+    cloud_timeout=30,
+    
+    # Optional: Custom headers for cloud connection
+    headers={
+        'X-Custom-Header': 'value',
+    },
+)
+
+agent = Agent(
+    task="Production automation task",
+    browser=browser,
+    llm=ChatBrowserUse(),
+)
+
+history = await agent.run()
+```
+
+## Benefits
+
+### 1. Captcha Bypass
+
+Cloud browsers use residential IPs with human-like fingerprints:
+
+```python
+# ✅ Works with cloud proxy
+browser = Browser(cloud_proxy_country_code='us')
+agent = Agent(
+    task="Search Google for 'web automation' and extract top 5 results",
+    browser=browser,
+    llm=ChatBrowserUse(),
+)
+await agent.run()  # No captcha challenges
+```
+
+### 2. Geo-Restricted Content
+
+Access region-specific content:
+
+```python
+# Access UK content
+browser = Browser(cloud_proxy_country_code='uk')
+agent = Agent(
+    task="Go to BBC iPlayer and check available shows",
+    browser=browser,
+    llm=ChatBrowserUse(),
+)
+```
+
+### 3. Scalability
+
+Provision multiple browsers instantly:
+
+```python
+import asyncio
+from browser_use import Browser, Agent, ChatBrowserUse
+
+async def scrape_page(url: str):
+    browser = Browser(use_cloud=True)
+    agent = Agent(
+        task=f"Scrape {url}",
+        browser=browser,
+        llm=ChatBrowserUse(),
+    )
+    return await agent.run()
+
+# Run 100 parallel tasks
+results = await asyncio.gather(*[
+    scrape_page(f"https://example.com/page/{i}")
+    for i in range(100)
+])
+```
+
+### 4. Low Latency
+
+Browsers run close to execution environment:
+
+```python
+# Sandbox + Cloud Browser = lowest latency
+from browser_use import sandbox
+
+@sandbox(cloud_profile_id='your-profile-id')
+async def fast_task(browser: Browser):
+    # Agent and browser in same datacenter
+    agent = Agent(task="Fast task", browser=browser, llm=ChatBrowserUse())
+    await agent.run()
+```
+
+## Proxy Locations
+
+Available proxy countries:
+
+| Country Code | Location | Use Case |
+|--------------|----------|----------|
+| `us` | United States | Most content, largest proxy pool |
+| `uk` | United Kingdom | UK content, European access |
+| `fr` | France | French content, EU regulations |
+| `it` | Italy | Italian content |
+| `jp` | Japan | Japanese content, Asia-Pacific |
+| `au` | Australia | Australian content |
+| `de` | Germany | German content, EU compliance |
+| `fi` | Finland | Finnish content |
+| `ca` | Canada | Canadian content |
+| `in` | India | Indian content, growing market |
+
+```python
+# Example: Test IP location with different proxies
+for country in ['us', 'uk', 'jp']:
+    browser = Browser(cloud_proxy_country_code=country)
+    agent = Agent(
+        task="Go to whatismyipaddress.com and tell me my location",
+        browser=browser,
+        llm=ChatBrowserUse(),
+    )
+    result = await agent.run()
+    print(f"{country}: {result.final_result()}")
+```
+
+## Profile Management
+
+### Creating a Profile
+
+```bash
+# Interactive profile creation
+export BROWSER_USE_API_KEY=your_key
+curl -fsSL https://browser-use.com/profile.sh | sh
+```
+
+This script:
+1. Opens a local browser
+2. Lets you log into your accounts
+3. Syncs cookies and localStorage to cloud
+4. Returns a `profile_id`
+
+### Using Profiles
+
+```python
+# Reuse profile across tasks
+PROFILE_ID = 'your-profile-id'
+
+# Task 1: Check email
+browser1 = Browser(cloud_profile_id=PROFILE_ID)
+agent1 = Agent(task="Check Gmail", browser=browser1, llm=ChatBrowserUse())
+await agent1.run()
+
+# Task 2: Post on social media
+browser2 = Browser(cloud_profile_id=PROFILE_ID)
+agent2 = Agent(task="Post to Twitter", browser=browser2, llm=ChatBrowserUse())
+await agent2.run()
+```
+
+### Profile Updates
+
+Profiles can be updated with new auth:
+
+```bash
+# Update existing profile
+curl -fsSL https://browser-use.com/profile.sh | sh --profile-id your-profile-id
+```
+
+## Advanced Usage
+
+### Remote Browser with CDP URL
+
+Connect to any CDP-compatible remote browser:
+
+```python
+browser = Browser(
+    cdp_url="http://remote-server:9222",  # Your remote browser
+)
+```
+
+### Custom Proxy (Non-Cloud)
+
+Use your own proxy with cloud browser:
+
+```python
+from browser_use.browser import ProxySettings
+
+browser = Browser(
+    use_cloud=True,
+    proxy=ProxySettings(
+        server="http://proxy-server:8080",
+        username="user",
+        password="pass",
+    ),
+)
+```
+
+<Warning>
+  Custom proxies don't benefit from residential IPs or captcha bypass. Use `cloud_proxy_country_code` for best results.
+</Warning>
+
+### Combining with Sandbox
+
+```python
+from browser_use import sandbox
+
+@sandbox(
+    cloud_profile_id='your-profile-id',
+    cloud_proxy_country_code='us',
+    cloud_timeout=60,
+)
+async def production_task(browser: Browser):
+    # Optimal setup:
+    # - Sandbox: managed execution environment
+    # - Cloud browser: residential proxy + auth
+    # - Low latency: browser and agent co-located
+    
+    agent = Agent(
+        task="Complex authenticated task",
+        browser=browser,
+        llm=ChatBrowserUse(),
+    )
+    return await agent.run()
+
+result = await production_task()
+```
+
+## Real-World Examples
+
+### E-commerce Price Monitoring
+
+```python
+from pydantic import BaseModel
+
+class Product(BaseModel):
+    name: str
+    price: float
+    availability: str
+
+@sandbox(
+    cloud_proxy_country_code='us',
+    cloud_timeout=30,
+)
+async def monitor_price(browser: Browser, product_url: str) -> Product:
+    agent = Agent(
+        task=f"Go to {product_url} and extract product name, price, and availability",
+        browser=browser,
+        llm=ChatBrowserUse(),
+        output_model_schema=Product,
+    )
+    history = await agent.run()
+    return history.structured_output
+
+product = await monitor_price(product_url="https://amazon.com/product/123")
+print(f"{product.name}: ${product.price} - {product.availability}")
+```
+
+### Social Media Automation
+
+```python
+@sandbox(
+    cloud_profile_id='social-media-profile',
+    cloud_proxy_country_code='us',
+)
+async def post_to_linkedin(browser: Browser, content: str) -> str:
+    agent = Agent(
+        task=f"Post this to LinkedIn: {content}",
+        browser=browser,
+        llm=ChatBrowserUse(),
+    )
+    history = await agent.run()
+    return history.final_result()
+
+result = await post_to_linkedin(
+    content="Excited to share our new Browser Use Cloud features!"
+)
+print(result)
+```
+
+### Multi-Region Testing
+
+```python
+from dataclasses import dataclass
+
+@dataclass
+class SearchResults:
+    country: str
+    results: list[str]
+
+async def test_search_localization(query: str) -> list[SearchResults]:
+    results = []
+    
+    for country in ['us', 'uk', 'de', 'jp']:
+        browser = Browser(cloud_proxy_country_code=country)
+        agent = Agent(
+            task=f"Search Google for '{query}' and list top 5 result titles",
+            browser=browser,
+            llm=ChatBrowserUse(),
+        )
+        history = await agent.run()
+        results.append(SearchResults(
+            country=country,
+            results=history.final_result(),
+        ))
+    
+    return results
+
+# Compare search results across regions
+comparison = await test_search_localization("best restaurants")
+for result in comparison:
+    print(f"{result.country}: {result.results[:3]}")
+```
+
+## Cost Management
+
+### Free Tier
+
+- **Session timeout**: Max 15 minutes
+- **Credits**: $10 free to start
+- **Browsers**: Standard provisioning speed
+
+### Paid Tier
+
+- **Session timeout**: Max 240 minutes (4 hours)
+- **Browsers**: Priority provisioning
+- **Support**: Priority support
+- **Billing**: Per-minute browser execution
+
+### Optimization Tips
+
+```python
+# 1. Set short timeouts for quick tasks
+browser = Browser(
+    use_cloud=True,
+    cloud_timeout=5,  # 5 minute timeout
+)
+
+# 2. Use flash mode for faster execution
+agent = Agent(
+    task="Quick data extraction",
+    browser=browser,
+    llm=ChatBrowserUse(),
+    flash_mode=True,  # Faster, fewer LLM calls
+)
+
+# 3. Limit agent steps
+await agent.run(max_steps=10)
+
+# 4. Reuse profiles instead of re-authenticating
+browser = Browser(cloud_profile_id='reusable-profile')
+```
+
+## Troubleshooting
+
+### API Key Issues
+
+```python
+import os
+
+# Check API key is set
+if not os.getenv('BROWSER_USE_API_KEY'):
+    raise ValueError("Set BROWSER_USE_API_KEY environment variable")
+
+# Or pass directly
+browser = Browser(
+    use_cloud=True,
+    headers={'Authorization': f'Bearer {your_api_key}'},
+)
+```
+
+### Profile Not Found
+
+```bash
+# Verify profile exists
+curl -H "Authorization: Bearer $BROWSER_USE_API_KEY" \
+  https://api.browser-use.com/api/v1/profiles
+
+# Create new profile if needed
+curl -fsSL https://browser-use.com/profile.sh | sh
+```
+
+### Proxy Connection Errors
+
+```python
+# Use specific country code
+browser = Browser(
+    cloud_proxy_country_code='us',  # Not 'USA' or 'United States'
+)
+
+# Check available countries in error message
+try:
+    browser = Browser(cloud_proxy_country_code='invalid')
+except Exception as e:
+    print(e)  # Lists valid country codes
+```
+
+## See Also
+
+- [Sandbox Execution](/advanced/sandbox) - Deploy to production
+- [Production Guide](/production) - Full deployment guide
+- [Browser Configuration](/customize/browser/all-parameters) - All browser options

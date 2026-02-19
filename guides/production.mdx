@@ -1,0 +1,752 @@
+---
+title: 'Production Deployment'
+description: 'Deploy Browser Use at scale with @sandbox'
+icon: 'rocket'
+---
+
+## Overview
+
+The `@sandbox` decorator makes production deployment effortless:
+
+- ✅ **Zero infrastructure** - No servers to manage
+- ✅ **Automatic scaling** - Handle millions of agents
+- ✅ **Persistent auth** - Cloud profile sync
+- ✅ **Global proxies** - Bypass captchas and geo-restrictions
+- ✅ **Live monitoring** - Watch agents in real-time
+
+<Tip>
+  Sandboxes run your code **right next to the browser** for minimal latency and maximum performance.
+</Tip>
+
+## Quick Start
+
+<Steps>
+  <Step title="Get API Key">
+    Sign up at [cloud.browser-use.com/new-api-key](https://cloud.browser-use.com/new-api-key) for $10 free credits.
+
+    ```bash
+    export BROWSER_USE_API_KEY=your_key_here
+    ```
+  </Step>
+
+  <Step title="Wrap Your Function">
+    Add `@sandbox()` decorator to any function:
+
+    ```python
+    from browser_use import Browser, sandbox, ChatBrowserUse
+    from browser_use.agent.service import Agent
+    import asyncio
+
+    @sandbox()
+    async def my_task(browser: Browser):
+        agent = Agent(
+            task="Find the top post on Hacker News",
+            browser=browser,
+            llm=ChatBrowserUse(),
+        )
+        await agent.run()
+
+    # Just call it - runs in production!
+    asyncio.run(my_task())
+    ```
+
+    <Warning>
+      The function **must** have `browser: Browser` as first parameter. Do NOT pass browser when calling.
+    </Warning>
+  </Step>
+
+  <Step title="Watch Live">
+    When your code runs, you'll see:
+
+    ```bash
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    👁️  LIVE BROWSER VIEW (Click to watch)
+    🔗 https://cloud.browser-use.com/live/abc123
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    ```
+
+    Click the link to watch your agent work in real-time!
+  </Step>
+</Steps>
+
+## Authentication with Cloud Profiles
+
+### Sync Local Cookies to Cloud
+
+Make your local browser sessions available in production:
+
+<Steps>
+  <Step title="Run Sync Script">
+    ```bash
+    export BROWSER_USE_API_KEY=your_key && curl -fsSL https://browser-use.com/profile.sh | sh
+    ```
+
+    This opens a browser where you login to your accounts. Takes 2 minutes.
+  </Step>
+
+  <Step title="Get Profile ID">
+    After logging in, you'll receive a `profile_id` like:
+
+    ```bash
+    ✅ Profile created: abc123-def456-ghi789
+    ```
+
+    Or find it at [cloud.browser-use.com/dashboard/settings?tab=profiles](https://cloud.browser-use.com/dashboard/settings?tab=profiles)
+  </Step>
+
+  <Step title="Use in Production">
+    ```python
+    from browser_use import Browser, sandbox, ChatBrowserUse
+    from browser_use.agent.service import Agent
+    import asyncio
+
+    @sandbox(cloud_profile_id='abc123-def456-ghi789')
+    async def authenticated_task(browser: Browser):
+        agent = Agent(
+            task="Check my GitHub notifications",
+            browser=browser,
+            llm=ChatBrowserUse(),
+        )
+        result = await agent.run()
+        return result.final_result()
+
+    result = asyncio.run(authenticated_task())
+    print(result)
+    ```
+
+    Your cloud browser is **already logged in** to all synced accounts!
+  </Step>
+</Steps>
+
+## Global Proxies
+
+Bypass captchas, Cloudflare, and geo-restrictions:
+
+```python
+from browser_use import Browser, sandbox, ChatBrowserUse
+from browser_use.agent.service import Agent
+import asyncio
+
+@sandbox(
+    cloud_proxy_country_code='us',  # Route through US proxy
+)
+async def bypass_restrictions(browser: Browser):
+    agent = Agent(
+        task="Access US-only content on example.com",
+        browser=browser,
+        llm=ChatBrowserUse(),
+    )
+    await agent.run()
+
+asyncio.run(bypass_restrictions())
+```
+
+**Supported Countries:**
+- `us` - United States
+- `uk` - United Kingdom
+- `fr` - France
+- `it` - Italy
+- `jp` - Japan
+- `au` - Australia
+- `de` - Germany
+- `fi` - Finland
+- `ca` - Canada
+- `in` - India
+
+<Tip>
+  Proxies are optimized for browser automation - they handle captchas, fingerprinting, and bot detection automatically.
+</Tip>
+
+## Session Timeouts
+
+Control how long browsers stay alive:
+
+```python
+@sandbox(
+    cloud_timeout=60,  # Keep browser alive for 60 minutes
+)
+async def long_running_task(browser: Browser):
+    # Your task here
+    pass
+```
+
+**Timeout Limits:**
+- **Free users:** Max 15 minutes
+- **Paid users:** Max 240 minutes (4 hours)
+
+<Warning>
+  Longer timeouts consume more credits. Optimize your tasks to complete quickly.
+</Warning>
+
+## Production Patterns
+
+### Basic Production Task
+
+```python
+from browser_use import Browser, sandbox, ChatBrowserUse
+from browser_use.agent.service import Agent
+from typing import List
+import asyncio
+
+class ProductData:
+    def __init__(self, name: str, price: float, url: str):
+        self.name = name
+        self.price = price
+        self.url = url
+
+@sandbox(
+    cloud_profile_id='your-profile-id',
+    cloud_proxy_country_code='us',
+)
+async def scrape_products(browser: Browser, category: str, limit: int) -> List[ProductData]:
+    """
+    Scrape products from e-commerce site.
+    
+    Args:
+        browser: Injected by @sandbox
+        category: Product category to scrape
+        limit: Max products to extract
+    
+    Returns:
+        List of product data
+    """
+    agent = Agent(
+        task=f"""
+        1. Go to shop.com
+        2. Navigate to {category} category
+        3. Extract first {limit} products with name, price, and URL
+        """,
+        browser=browser,
+        llm=ChatBrowserUse(),
+    )
+    
+    result = await agent.run()
+    
+    # Parse and return structured data
+    import json
+    data = json.loads(result.final_result())
+    return [ProductData(**item) for item in data['products']]
+
+# Call with parameters
+products = asyncio.run(scrape_products(
+    category='electronics',
+    limit=50
+))
+
+print(f"Scraped {len(products)} products")
+```
+
+### Parallel Execution
+
+```python
+import asyncio
+from browser_use import Browser, sandbox, ChatBrowserUse
+from browser_use.agent.service import Agent
+
+@sandbox(cloud_proxy_country_code='us')
+async def check_website(browser: Browser, url: str) -> dict:
+    agent = Agent(
+        task=f"Go to {url} and check if it's accessible",
+        browser=browser,
+        llm=ChatBrowserUse(),
+    )
+    result = await agent.run()
+    return {'url': url, 'accessible': result.is_successful()}
+
+async def monitor_websites():
+    urls = [
+        'https://site1.com',
+        'https://site2.com',
+        'https://site3.com',
+    ]
+    
+    # Run all checks in parallel
+    results = await asyncio.gather(*[
+        check_website(url=url) for url in urls
+    ])
+    
+    return results
+
+results = asyncio.run(monitor_websites())
+print(results)
+```
+
+### Error Handling
+
+```python
+from browser_use import Browser, sandbox, ChatBrowserUse
+from browser_use.agent.service import Agent
+from browser_use.sandbox.views import SandboxError
+import asyncio
+
+@sandbox(
+    cloud_profile_id='your-profile-id',
+    cloud_proxy_country_code='us',
+    cloud_timeout=30,
+)
+async def robust_task(browser: Browser, max_retries: int = 3) -> dict:
+    for attempt in range(max_retries):
+        try:
+            agent = Agent(
+                task="Extract data from flaky-site.com",
+                browser=browser,
+                llm=ChatBrowserUse(),
+                max_failures=3,
+            )
+            
+            result = await agent.run()
+            
+            if result.is_successful():
+                return {'success': True, 'data': result.final_result()}
+            
+            # Retry on failure
+            if attempt < max_retries - 1:
+                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                continue
+            
+            return {'success': False, 'error': 'Max failures reached'}
+        
+        except SandboxError as e:
+            if attempt < max_retries - 1:
+                print(f"Attempt {attempt + 1} failed: {e}. Retrying...")
+                await asyncio.sleep(2 ** attempt)
+            else:
+                return {'success': False, 'error': str(e)}
+    
+    return {'success': False, 'error': 'All retries exhausted'}
+
+result = asyncio.run(robust_task())
+print(result)
+```
+
+### Scheduled Tasks
+
+```python
+import asyncio
+from datetime import datetime
+from browser_use import Browser, sandbox, ChatBrowserUse
+from browser_use.agent.service import Agent
+
+@sandbox(cloud_profile_id='your-profile-id')
+async def daily_report(browser: Browser) -> str:
+    """
+    Run daily report generation.
+    Deploy with cron or scheduler service.
+    """
+    agent = Agent(
+        task="""
+        1. Login to analytics dashboard
+        2. Extract yesterday's metrics
+        3. Save to daily_report.csv
+        """,
+        browser=browser,
+        llm=ChatBrowserUse(),
+    )
+    
+    result = await agent.run()
+    
+    # Send notification
+    timestamp = datetime.now().isoformat()
+    return f"Report generated at {timestamp}: {result.final_result()}"
+
+# In production, schedule with:
+# - AWS EventBridge
+# - Google Cloud Scheduler
+# - Cron job
+# - Celery Beat
+
+if __name__ == '__main__':
+    report = asyncio.run(daily_report())
+    print(report)
+```
+
+## Monitoring and Callbacks
+
+### Live Browser Monitoring
+
+```python
+from browser_use import Browser, sandbox, ChatBrowserUse
+from browser_use.agent.service import Agent
+from browser_use.sandbox.views import BrowserCreatedData
+import asyncio
+
+LIVE_URL = None
+
+async def save_live_url(data: BrowserCreatedData):
+    """Called when browser is created"""
+    global LIVE_URL
+    LIVE_URL = data.live_url
+    print(f"Browser live at: {LIVE_URL}")
+    
+    # Send to your monitoring system
+    # await send_to_slack(LIVE_URL)
+    # await log_to_datadog({'live_url': LIVE_URL})
+
+@sandbox(
+    cloud_profile_id='your-profile-id',
+    on_browser_created=save_live_url,
+)
+async def monitored_task(browser: Browser):
+    agent = Agent(
+        task="Your task here",
+        browser=browser,
+        llm=ChatBrowserUse(),
+    )
+    await agent.run()
+
+asyncio.run(monitored_task())
+```
+
+### Execution Callbacks
+
+```python
+from browser_use.sandbox.views import LogData, ResultData, ErrorData
+import asyncio
+
+logs = []
+
+async def handle_log(data: LogData):
+    """Called for each log message"""
+    logs.append({'level': data.level, 'message': data.message})
+    
+    if 'error' in data.message.lower():
+        # Alert on errors
+        print(f"⚠️ Error detected: {data.message}")
+
+async def handle_result(data: ResultData):
+    """Called when execution completes"""
+    print(f"✅ Task completed successfully")
+    print(f"Result: {data.execution_response.result}")
+
+async def handle_error(data: ErrorData):
+    """Called on fatal errors"""
+    print(f"❌ Fatal error: {data.error}")
+    # Send alert to monitoring system
+
+@sandbox(
+    on_log=handle_log,
+    on_result=handle_result,
+    on_error=handle_error,
+)
+async def task_with_monitoring(browser: Browser):
+    agent = Agent(
+        task="Your task",
+        browser=browser,
+        llm=ChatBrowserUse(),
+    )
+    await agent.run()
+
+asyncio.run(task_with_monitoring())
+print(f"Collected {len(logs)} log messages")
+```
+
+### Quiet Mode
+
+Disable console output:
+
+```python
+@sandbox(
+    quiet=True,  # No console output
+)
+async def silent_task(browser: Browser):
+    # Your task here
+    pass
+```
+
+## Environment Variables
+
+Pass secrets and config to sandbox:
+
+```python
+import os
+
+@sandbox(
+    # Pass environment variables
+    DATABASE_URL=os.getenv('DATABASE_URL'),
+    API_KEY=os.getenv('API_KEY'),
+    ENV='production',
+)
+async def task_with_env(browser: Browser):
+    # Access env vars inside sandbox
+    import os
+    db_url = os.getenv('DATABASE_URL')
+    api_key = os.getenv('API_KEY')
+    
+    # Your task using these values
+    agent = Agent(
+        task=f"Your task",
+        browser=browser,
+        llm=ChatBrowserUse(),
+    )
+    await agent.run()
+```
+
+## Cost Optimization
+
+### Use Flash Mode
+
+```python
+@sandbox(cloud_proxy_country_code='us')
+async def fast_task(browser: Browser):
+    agent = Agent(
+        task="Quick data extraction",
+        browser=browser,
+        llm=ChatBrowserUse(),
+        flash_mode=True,  # 2-3x faster, lower cost
+    )
+    await agent.run()
+```
+
+### Minimize Browser Time
+
+```python
+@sandbox(cloud_timeout=15)  # Minimum timeout
+async def optimized_task(browser: Browser):
+    agent = Agent(
+        task="Your task",
+        browser=browser,
+        llm=ChatBrowserUse(),
+        max_steps=20,  # Limit steps
+    )
+    await agent.run()
+```
+
+### Batch Operations
+
+```python
+@sandbox(cloud_proxy_country_code='us')
+async def batch_scrape(browser: Browser, urls: list[str]):
+    """Scrape multiple URLs in one session"""
+    results = []
+    
+    for url in urls:
+        agent = Agent(
+            task=f"Go to {url} and extract title",
+            browser=browser,  # Reuse same browser
+            llm=ChatBrowserUse(),
+        )
+        result = await agent.run()
+        results.append(result.final_result())
+    
+    return results
+
+# Scrape 10 sites in one sandbox session
+results = asyncio.run(batch_scrape(urls=[
+    'https://site1.com',
+    'https://site2.com',
+    # ... more URLs
+]))
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Keep Sessions Short">
+    ```python
+    # Good - Complete task quickly
+    @sandbox(cloud_timeout=15)
+    async def quick_task(browser: Browser):
+        # Focused, specific task
+        pass
+    
+    # Avoid - Long-running sessions cost more
+    @sandbox(cloud_timeout=240)
+    async def slow_task(browser: Browser):
+        # Inefficient, wandering task
+        pass
+    ```
+  </Step>
+
+  <Step title="Use Cloud Profiles for Auth">
+    ```python
+    # Good - Persistent authentication
+    @sandbox(cloud_profile_id='your-id')
+    async def authenticated_task(browser: Browser):
+        # Already logged in, fast execution
+        pass
+    
+    # Avoid - Login every time
+    async def slow_login_task(browser: Browser):
+        # Waste time logging in each run
+        pass
+    ```
+  </Step>
+
+  <Step title="Handle Errors Gracefully">
+    ```python
+    @sandbox()
+    async def robust_task(browser: Browser):
+        try:
+            agent = Agent(
+                task="Your task",
+                browser=browser,
+                llm=ChatBrowserUse(),
+                max_failures=3,  # Built-in retry
+            )
+            result = await agent.run()
+            return result
+        except Exception as e:
+            # Log error, send alert
+            print(f"Error: {e}")
+            return None
+    ```
+  </Step>
+
+  <Step title="Monitor Credit Usage">
+    Check dashboard at [cloud.browser-use.com/dashboard](https://cloud.browser-use.com/dashboard)
+    
+    ```python
+    # The sandbox prints credit balance:
+    # 💰 You have $8.50 credits
+    ```
+  </Step>
+</Steps>
+
+## Deployment Platforms
+
+### AWS Lambda
+
+```python
+# lambda_handler.py
+import asyncio
+from browser_use import Browser, sandbox, ChatBrowserUse
+from browser_use.agent.service import Agent
+
+@sandbox(
+    cloud_profile_id='your-profile-id',
+    quiet=True,
+)
+async def scrape_data(browser: Browser, url: str):
+    agent = Agent(
+        task=f"Extract data from {url}",
+        browser=browser,
+        llm=ChatBrowserUse(),
+    )
+    result = await agent.run()
+    return result.final_result()
+
+def lambda_handler(event, context):
+    url = event.get('url')
+    result = asyncio.run(scrape_data(url=url))
+    
+    return {
+        'statusCode': 200,
+        'body': result
+    }
+```
+
+### Google Cloud Functions
+
+```python
+# main.py
+import asyncio
+from browser_use import Browser, sandbox, ChatBrowserUse
+from browser_use.agent.service import Agent
+
+@sandbox(cloud_profile_id='your-profile-id')
+async def process_request(browser: Browser, data: dict):
+    agent = Agent(
+        task=data['task'],
+        browser=browser,
+        llm=ChatBrowserUse(),
+    )
+    result = await agent.run()
+    return result.final_result()
+
+def cloud_function(request):
+    data = request.get_json()
+    result = asyncio.run(process_request(data=data))
+    return {'result': result}
+```
+
+### Docker Container
+
+```dockerfile
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+COPY . .
+
+CMD ["python", "app.py"]
+```
+
+```python
+# app.py
+from browser_use import Browser, sandbox, ChatBrowserUse
+from browser_use.agent.service import Agent
+import asyncio
+import os
+
+@sandbox(
+    BROWSER_USE_API_KEY=os.getenv('BROWSER_USE_API_KEY'),
+    cloud_profile_id=os.getenv('CLOUD_PROFILE_ID'),
+)
+async def run_agent(browser: Browser):
+    agent = Agent(
+        task=os.getenv('TASK'),
+        browser=browser,
+        llm=ChatBrowserUse(),
+    )
+    await agent.run()
+
+if __name__ == '__main__':
+    asyncio.run(run_agent())
+```
+
+## Troubleshooting
+
+### API Key Issues
+
+```python
+from browser_use.sandbox.views import SandboxError
+
+try:
+    asyncio.run(my_task())
+except SandboxError as e:
+    if 'BROWSER_USE_API_KEY' in str(e):
+        print("Set BROWSER_USE_API_KEY environment variable")
+```
+
+### Timeout Errors
+
+```python
+# Increase timeout
+@sandbox(
+    cloud_timeout=60,  # From 15 to 60 minutes
+)
+async def long_task(browser: Browser):
+    # Your long-running task
+    pass
+```
+
+### Profile Not Found
+
+```python
+# Verify profile ID at dashboard
+@sandbox(
+    cloud_profile_id='correct-profile-id',  # Check dashboard
+)
+async def task(browser: Browser):
+    pass
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Get API Key" icon="key" href="https://cloud.browser-use.com/new-api-key">
+    Start with $10 free credits
+  </Card>
+  <Card title="Cloud Dashboard" icon="chart-line" href="https://cloud.browser-use.com/dashboard">
+    Monitor usage and profiles
+  </Card>
+  <Card title="Authentication" icon="lock" href="/guides/authentication">
+    Sync cookies to cloud
+  </Card>
+  <Card title="Examples" icon="code" href="https://github.com/browser-use/browser-use/tree/main/examples">
+    See production examples
+  </Card>
+</CardGroup>

@@ -1,0 +1,422 @@
+---
+title: Playwright Integration
+description: Combine Browser Use AI with Playwright's precise browser control
+icon: theater-masks
+---
+
+Browser Use can integrate with Playwright to leverage both AI-driven automation and Playwright's precise, deterministic browser control.
+
+## Why Integrate Playwright?
+
+- **AI + Precision**: Use AI for complex decision-making and Playwright for precise interactions
+- **Shared Browser**: Both tools control the same Chrome instance via CDP
+- **Custom Actions**: Create Browser Use actions powered by Playwright functions
+- **Best of Both Worlds**: Flexible AI automation with reliable, fast element selection
+
+## Complete Integration Example
+
+This example shows Browser Use and Playwright sharing a Chrome instance with custom Playwright-powered actions:
+
+```python
+import asyncio
+import os
+import subprocess
+import tempfile
+from pydantic import BaseModel, Field
+
+try:
+    import aiohttp
+    from playwright.async_api import Browser, Page, async_playwright
+except ImportError as e:
+    print(f'Missing dependencies: {e}')
+    print('Install with: uv add playwright aiohttp')
+    print('Then run: playwright install chromium')
+    exit(1)
+
+from browser_use import Agent, BrowserSession, ChatOpenAI, Tools
+from browser_use.agent.views import ActionResult
+
+# Global Playwright browser instance
+playwright_browser: Browser | None = None
+playwright_page: Page | None = None
+
+# Custom action parameter models
+class PlaywrightFillFormAction(BaseModel):
+    """Parameters for Playwright form filling action."""
+    customer_name: str = Field(..., description='Customer name to fill')
+    phone_number: str = Field(..., description='Phone number to fill')
+    email: str = Field(..., description='Email address to fill')
+    size_option: str = Field(..., description='Size option (small/medium/large)')
+
+class PlaywrightScreenshotAction(BaseModel):
+    """Parameters for Playwright screenshot action."""
+    filename: str = Field(default='playwright_screenshot.png')
+    quality: int | None = Field(default=None, description='JPEG quality (1-100)')
+
+class PlaywrightGetTextAction(BaseModel):
+    """Parameters for getting text using Playwright selectors."""
+    selector: str = Field(..., description='CSS selector to get text from')
+
+async def start_chrome_with_debug_port(port: int = 9222):
+    """Start Chrome with remote debugging enabled."""
+    user_data_dir = tempfile.mkdtemp(prefix='chrome_cdp_')
+    
+    chrome_paths = [
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',  # macOS
+        '/usr/bin/google-chrome',  # Linux
+        '/usr/bin/chromium-browser',  # Linux Chromium
+        'chrome',  # Windows/PATH
+    ]
+    
+    chrome_exe = None
+    for path in chrome_paths:
+        if os.path.exists(path) or path == 'chrome':
+            try:
+                test_proc = await asyncio.create_subprocess_exec(
+                    path, '--version', 
+                    stdout=subprocess.DEVNULL, 
+                    stderr=subprocess.DEVNULL
+                )
+                await test_proc.wait()
+                chrome_exe = path
+                break
+            except Exception:
+                continue
+    
+    if not chrome_exe:
+        raise RuntimeError('Chrome not found. Please install Chrome or Chromium.')
+    
+    cmd = [
+        chrome_exe,
+        f'--remote-debugging-port={port}',
+        f'--user-data-dir={user_data_dir}',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-extensions',
+        'about:blank',
+    ]
+    
+    process = await asyncio.create_subprocess_exec(
+        *cmd, 
+        stdout=subprocess.DEVNULL, 
+        stderr=subprocess.DEVNULL
+    )
+    
+    # Wait for Chrome to start and CDP to be ready
+    cdp_ready = False
+    for _ in range(20):
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f'http://localhost:{port}/json/version',
+                    timeout=aiohttp.ClientTimeout(total=1)
+                ) as response:
+                    if response.status == 200:
+                        cdp_ready = True
+                        break
+        except Exception:
+            pass
+        await asyncio.sleep(1)
+    
+    if not cdp_ready:
+        process.terminate()
+        raise RuntimeError('Chrome failed to start with CDP')
+    
+    return process
+
+async def connect_playwright_to_cdp(cdp_url: str):
+    """Connect Playwright to the same Chrome instance Browser-Use is using."""
+    global playwright_browser, playwright_page
+    
+    playwright = await async_playwright().start()
+    playwright_browser = await playwright.chromium.connect_over_cdp(cdp_url)
+    
+    # Get or create a page
+    if playwright_browser and playwright_browser.contexts:
+        if playwright_browser.contexts[0].pages:
+            playwright_page = playwright_browser.contexts[0].pages[0]
+    elif playwright_browser:
+        context = await playwright_browser.new_context()
+        playwright_page = await context.new_page()
+
+# Create custom tools using Playwright
+tools = Tools()
+
+@tools.registry.action(
+    "Fill out a form using Playwright's precise form filling capabilities",
+    param_model=PlaywrightFillFormAction,
+)
+async def playwright_fill_form(
+    params: PlaywrightFillFormAction, 
+    browser_session: BrowserSession
+):
+    """
+    Custom action that uses Playwright to fill forms with high precision.
+    """
+    try:
+        if not playwright_page:
+            return ActionResult(error='Playwright not connected')
+        
+        # Wait for form and fill fields
+        await playwright_page.wait_for_selector('input[name="custname"]', timeout=10000)
+        await playwright_page.fill('input[name="custname"]', params.customer_name)
+        await playwright_page.fill('input[name="custtel"]', params.phone_number)
+        await playwright_page.fill('input[name="custemail"]', params.email)
+        
+        # Handle size selection
+        size_select = playwright_page.locator('select[name="size"]')
+        size_radio = playwright_page.locator(f'input[name="size"][value="{params.size_option}"]')
+        
+        if await size_select.count() > 0:
+            await playwright_page.select_option('select[name="size"]', params.size_option)
+        elif await size_radio.count() > 0:
+            await playwright_page.check(f'input[name="size"][value="{params.size_option}"]')
+        
+        # Verify form data
+        form_data = {
+            'name': await playwright_page.input_value('input[name="custname"]'),
+            'phone': await playwright_page.input_value('input[name="custtel"]'),
+            'email': await playwright_page.input_value('input[name="custemail"]'),
+        }
+        
+        success_msg = f'Form filled successfully with Playwright: {form_data}'
+        return ActionResult(
+            extracted_content=success_msg,
+            include_in_memory=True
+        )
+    
+    except Exception as e:
+        return ActionResult(error=f'Playwright form filling failed: {str(e)}')
+
+@tools.registry.action(
+    "Take a screenshot using Playwright's screenshot capabilities",
+    param_model=PlaywrightScreenshotAction,
+)
+async def playwright_screenshot(
+    params: PlaywrightScreenshotAction,
+    browser_session: BrowserSession
+):
+    """Custom action using Playwright's advanced screenshot features."""
+    try:
+        if not playwright_page:
+            return ActionResult(error='Playwright not connected')
+        
+        screenshot_kwargs = {'path': params.filename, 'full_page': True}
+        
+        if params.quality and params.filename.lower().endswith(('.jpg', '.jpeg')):
+            screenshot_kwargs['quality'] = params.quality
+        
+        await playwright_page.screenshot(**screenshot_kwargs)
+        
+        return ActionResult(
+            extracted_content=f'Screenshot saved as {params.filename}',
+            include_in_memory=True
+        )
+    
+    except Exception as e:
+        return ActionResult(error=f'Playwright screenshot failed: {str(e)}')
+
+@tools.registry.action(
+    "Extract text using Playwright's powerful CSS selectors",
+    param_model=PlaywrightGetTextAction
+)
+async def playwright_get_text(
+    params: PlaywrightGetTextAction,
+    browser_session: BrowserSession
+):
+    """Custom action using Playwright's text extraction."""
+    try:
+        if not playwright_page:
+            return ActionResult(error='Playwright not connected')
+        
+        if params.selector.lower() == 'title':
+            text_content = await playwright_page.title()
+            result_data = {
+                'selector': 'title',
+                'text_content': text_content,
+                'is_visible': True,
+            }
+        else:
+            element = playwright_page.locator(params.selector).first
+            
+            if await element.count() == 0:
+                return ActionResult(error=f'No element found: {params.selector}')
+            
+            text_content = await element.text_content()
+            inner_text = await element.inner_text()
+            tag_name = await element.evaluate('el => el.tagName')
+            is_visible = await element.is_visible()
+            
+            result_data = {
+                'selector': params.selector,
+                'text_content': text_content,
+                'inner_text': inner_text,
+                'tag_name': tag_name,
+                'is_visible': is_visible,
+            }
+        
+        return ActionResult(
+            extracted_content=str(result_data),
+            include_in_memory=True
+        )
+    
+    except Exception as e:
+        return ActionResult(error=f'Playwright text extraction failed: {str(e)}')
+
+async def main():
+    """Main function demonstrating Browser-Use + Playwright integration."""
+    print('🚀 Advanced Playwright + Browser-Use Integration')
+    
+    chrome_process = None
+    try:
+        # Step 1: Start Chrome with CDP debugging
+        chrome_process = await start_chrome_with_debug_port()
+        cdp_url = 'http://localhost:9222'
+        
+        # Step 2: Connect Playwright to Chrome
+        await connect_playwright_to_cdp(cdp_url)
+        
+        # Step 3: Create Browser-Use session connected to same Chrome
+        browser_session = BrowserSession(cdp_url=cdp_url)
+        
+        # Step 4: Create AI agent with custom Playwright-powered tools
+        agent = Agent(
+            task="""
+            Demonstrate Browser-Use and Playwright integration:
+            
+            1. Navigate to https://httpbin.org/forms/post
+            2. Use 'playwright_fill_form' action to fill with:
+               - Customer name: "Alice Johnson"
+               - Phone: "555-9876"
+               - Email: "alice@demo.com"
+               - Size: "large"
+            3. Take a screenshot with 'playwright_screenshot' as "form_demo.png"
+            4. Extract page title with 'playwright_get_text' using selector "title"
+            5. Submit the form and report results
+            """,
+            llm=ChatOpenAI(model='gpt-4.1-mini'),
+            tools=tools,
+            browser_session=browser_session,
+        )
+        
+        print('🎯 Starting AI agent with custom Playwright actions...')
+        
+        # Step 5: Run the agent
+        result = await agent.run()
+        
+        print(f'✅ Integration demo completed! Result: {result}')
+        await asyncio.sleep(2)
+    
+    except Exception as e:
+        print(f'❌ Error: {e}')
+        raise
+    
+    finally:
+        # Clean up resources
+        if playwright_browser:
+            await playwright_browser.close()
+        
+        if chrome_process:
+            chrome_process.terminate()
+            try:
+                await asyncio.wait_for(chrome_process.wait(), 5)
+            except TimeoutError:
+                chrome_process.kill()
+        
+        print('✅ Cleanup complete')
+
+if __name__ == '__main__':
+    asyncio.run(main())
+```
+
+## Key Integration Concepts
+
+<Steps>
+  <Step title="Shared Chrome Instance">
+    Both Browser Use and Playwright connect to the same Chrome via CDP (Chrome DevTools Protocol)
+  </Step>
+  
+  <Step title="Custom Actions">
+    Define Browser Use actions that internally use Playwright functions
+  </Step>
+  
+  <Step title="AI Orchestration">
+    The AI agent decides when to use Playwright-powered actions vs standard actions
+  </Step>
+  
+  <Step title="Best of Both">
+    Get AI flexibility for complex tasks + Playwright precision for interactions
+  </Step>
+</Steps>
+
+## When to Use Playwright Integration
+
+<CardGroup cols={2}>
+  <Card title="Use Playwright For" icon="bolt">
+    - Precise element selection with CSS selectors
+    - Fast, deterministic interactions
+    - Advanced screenshot options
+    - Shadow DOM access
+    - Custom JavaScript evaluation
+  </Card>
+  
+  <Card title="Use Browser Use For" icon="brain">
+    - Complex decision-making
+    - Content understanding
+    - Dynamic page navigation
+    - Task planning and reasoning
+    - Handling unexpected page structures
+  </Card>
+</CardGroup>
+
+## Simple Playwright Actions
+
+Create focused custom actions for specific use cases:
+
+```python
+from browser_use import Tools, ActionResult, BrowserSession
+
+tools = Tools()
+
+@tools.registry.action('Click element using Playwright selector')
+async def playwright_click(selector: str, browser_session: BrowserSession):
+    """Precise click using Playwright's CSS selector."""
+    try:
+        await playwright_page.click(selector)
+        return ActionResult(extracted_content=f'Clicked: {selector}')
+    except Exception as e:
+        return ActionResult(error=f'Click failed: {e}')
+
+@tools.registry.action('Wait for element with Playwright')
+async def playwright_wait(selector: str, timeout: int = 5000):
+    """Wait for element to appear."""
+    try:
+        await playwright_page.wait_for_selector(selector, timeout=timeout)
+        return ActionResult(extracted_content=f'Element ready: {selector}')
+    except Exception as e:
+        return ActionResult(error=f'Wait timeout: {e}')
+```
+
+## Benefits of Integration
+
+- **Reliability**: Playwright's selectors are more precise than AI-based element detection
+- **Speed**: Direct selector-based actions are faster than AI analysis
+- **Advanced Features**: Access Playwright's full API (network interception, downloads, etc.)
+- **Deterministic**: Playwright actions are consistent and predictable
+- **Flexibility**: AI handles complex scenarios Playwright alone can't solve
+
+## Installation
+
+```bash
+# Install required dependencies
+uv add playwright aiohttp
+
+# Install Chromium for Playwright
+playwright install chromium
+```
+
+## Related Examples
+
+- [Custom Tools](/customize/tools/add) - Learn how to create custom actions
+- [2FA Authentication](/examples/2fa) - Use Playwright for deterministic 2FA input
+- [Parallel Tasks](/examples/parallel-tasks) - Run multiple browser instances

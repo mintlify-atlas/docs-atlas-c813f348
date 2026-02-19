@@ -1,0 +1,409 @@
+---
+title: Two-Factor Authentication
+description: Handle 2FA codes and multi-step authentication with Browser Use
+icon: shield-halved
+---
+
+Browser Use can automate login workflows that require two-factor authentication (2FA) by securely handling TOTP codes.
+
+## Basic 2FA Authentication
+
+Handle 2FA using the `sensitive_data` parameter to securely pass secret keys:
+
+```python
+import os
+import sys
+from dotenv import load_dotenv
+
+load_dotenv()
+
+from browser_use import Agent
+
+# Get your 2FA secret key (from authenticator app setup)
+secret_key = os.environ.get('OTP_SECRET_KEY')
+if not secret_key:
+    # For demo: copy code from https://authenticationtest.com/totpChallenge/
+    # For real 2FA: copy secret key when setting up authenticator app
+    secret_key = 'JBSWY3DPEHPK3PXP'
+
+# Store secret securely
+sensitive_data = {'bu_2fa_code': secret_key}
+
+task = """
+1. Go to https://authenticationtest.com/totpChallenge/ and try to log in.
+2. If prompted for 2FA code:
+   Input the secret bu_2fa_code.
+
+When you input bu_2fa_code, the 6 digit code will be generated automatically.
+"""
+
+Agent(task=task, sensitive_data=sensitive_data).run_sync()
+```
+
+## How It Works
+
+<Steps>
+  <Step title="Store Secret Key">
+    Save your TOTP secret key (from authenticator app setup) in `sensitive_data`
+  </Step>
+  
+  <Step title="Reference in Task">
+    Reference the secret by its key name (e.g., `bu_2fa_code`) in your task description
+  </Step>
+  
+  <Step title="Automatic Code Generation">
+    Browser Use automatically generates the current 6-digit TOTP code from the secret
+  </Step>
+  
+  <Step title="Input Code">
+    The agent inputs the generated code into the 2FA form field
+  </Step>
+</Steps>
+
+## Gmail 2FA Integration
+
+Real-world example: Logging into Gmail with 2FA:
+
+```python
+import asyncio
+import os
+from dotenv import load_dotenv
+from browser_use import Agent, Browser, ChatOpenAI
+
+load_dotenv()
+
+async def gmail_login_with_2fa():
+    """
+    Log into Gmail with two-factor authentication.
+    """
+    # Get credentials from environment
+    email = os.environ.get('GMAIL_EMAIL')
+    password = os.environ.get('GMAIL_PASSWORD')
+    totp_secret = os.environ.get('GMAIL_TOTP_SECRET')
+    
+    if not all([email, password, totp_secret]):
+        raise ValueError('Missing Gmail credentials in environment variables')
+    
+    # Store sensitive data securely
+    sensitive_data = {
+        'email': email,
+        'password': password,
+        'totp_secret': totp_secret,
+    }
+    
+    task = """
+    Log into Gmail with 2FA:
+    
+    1. Go to https://mail.google.com
+    2. Enter email: use the value from 'email' in sensitive_data
+    3. Click Next
+    4. Enter password: use the value from 'password' in sensitive_data
+    5. Click Next
+    6. When prompted for 2FA code:
+       - Use 'totp_secret' from sensitive_data
+       - The 6-digit code will be generated automatically
+    7. Complete login and confirm you're in the inbox
+    """
+    
+    browser = Browser(headless=False)
+    agent = Agent(
+        task=task,
+        browser=browser,
+        llm=ChatOpenAI(model='gpt-4.1-mini'),
+        sensitive_data=sensitive_data
+    )
+    
+    result = await agent.run()
+    print('✅ Successfully logged into Gmail with 2FA')
+    return result
+
+if __name__ == '__main__':
+    asyncio.run(gmail_login_with_2fa())
+```
+
+## Getting Your TOTP Secret Key
+
+When setting up 2FA on a website, you'll see a QR code. The secret key is also provided:
+
+<Steps>
+  <Step title="Setup 2FA">
+    When enabling 2FA on a website, look for "Can't scan QR code?" or "Manual entry" option
+  </Step>
+  
+  <Step title="Copy Secret Key">
+    Copy the alphanumeric secret key (e.g., `JBSWY3DPEHPK3PXP`)
+  </Step>
+  
+  <Step title="Store Securely">
+    Save the secret in your password manager or environment variables
+  </Step>
+  
+  <Step title="Use in Browser Use">
+    Pass the secret via `sensitive_data` parameter
+  </Step>
+</Steps>
+
+<Note>
+**Password Managers**: Apps like 1Password display the secret key when you view a 2FA entry. You can extract it from there.
+</Note>
+
+## Multiple 2FA Accounts
+
+Handle different 2FA codes for multiple accounts:
+
+```python
+import asyncio
+from browser_use import Agent, ChatBrowserUse
+
+async def multi_account_login():
+    """Log into multiple accounts with different 2FA secrets."""
+    
+    accounts = [
+        {
+            'name': 'Work Email',
+            'url': 'https://mail.google.com',
+            'email': 'work@company.com',
+            'password': 'work_password',
+            'totp_secret': 'WORK_TOTP_SECRET_HERE',
+        },
+        {
+            'name': 'Personal Email',
+            'url': 'https://mail.google.com',
+            'email': 'personal@gmail.com',
+            'password': 'personal_password',
+            'totp_secret': 'PERSONAL_TOTP_SECRET_HERE',
+        },
+    ]
+    
+    for account in accounts:
+        sensitive_data = {
+            'email': account['email'],
+            'password': account['password'],
+            'totp_secret': account['totp_secret'],
+        }
+        
+        task = f"""
+        Log into {account['name']}:
+        1. Go to {account['url']}
+        2. Enter email from sensitive_data
+        3. Enter password from sensitive_data
+        4. When prompted for 2FA, use totp_secret from sensitive_data
+        5. Verify successful login
+        """
+        
+        agent = Agent(
+            task=task,
+            llm=ChatBrowserUse(),
+            sensitive_data=sensitive_data
+        )
+        
+        result = await agent.run()
+        print(f'✅ Logged into {account["name"]}')
+
+if __name__ == '__main__':
+    asyncio.run(multi_account_login())
+```
+
+## SMS-based 2FA
+
+For SMS-based 2FA, you'll need a custom action to receive SMS codes:
+
+```python
+from browser_use import Agent, Tools, ActionResult
+
+tools = Tools()
+
+@tools.registry.action('Get SMS 2FA code from phone')
+async def get_sms_code() -> ActionResult:
+    """
+    Custom action to receive SMS code.
+    Implement using SMS gateway API or user input.
+    """
+    # Option 1: Use SMS API (Twilio, etc.)
+    # code = await fetch_sms_code_from_api()
+    
+    # Option 2: Prompt user
+    code = input('Enter the SMS code you received: ')
+    
+    return ActionResult(
+        extracted_content=f'SMS code: {code}',
+        include_in_memory=True
+    )
+
+task = """
+Log into the website:
+1. Enter username and password
+2. When prompted for SMS code, use 'get_sms_code' action
+3. Complete login
+"""
+
+agent = Agent(task=task, tools=tools)
+```
+
+## Email-based 2FA
+
+Handle 2FA codes sent via email:
+
+```python
+from browser_use import Agent, Tools, ActionResult
+import imaplib
+import email
+import re
+
+tools = Tools()
+
+@tools.registry.action('Get 2FA code from email')
+async def get_email_2fa_code(email_address: str, email_password: str) -> ActionResult:
+    """
+    Fetch the latest 2FA code from email.
+    """
+    try:
+        # Connect to email server
+        mail = imaplib.IMAP4_SSL('imap.gmail.com')
+        mail.login(email_address, email_password)
+        mail.select('inbox')
+        
+        # Search for recent 2FA emails
+        _, messages = mail.search(None, '(UNSEEN SUBJECT "verification code")')
+        
+        if messages[0]:
+            latest_email_id = messages[0].split()[-1]
+            _, msg_data = mail.fetch(latest_email_id, '(RFC822)')
+            
+            # Parse email
+            email_body = email.message_from_bytes(msg_data[0][1])
+            body = email_body.get_payload(decode=True).decode()
+            
+            # Extract code (assuming 6-digit format)
+            code_match = re.search(r'\b\d{6}\b', body)
+            if code_match:
+                code = code_match.group()
+                return ActionResult(
+                    extracted_content=f'2FA code: {code}',
+                    include_in_memory=True
+                )
+        
+        return ActionResult(error='No 2FA code found in recent emails')
+    
+    except Exception as e:
+        return ActionResult(error=f'Failed to fetch email: {str(e)}')
+
+task = """
+Log into the account:
+1. Enter credentials
+2. Select "Email me a code"
+3. Wait 10 seconds for email to arrive
+4. Use 'get_email_2fa_code' action with email credentials
+5. Input the received code
+6. Complete login
+"""
+
+agent = Agent(task=task, tools=tools)
+```
+
+## Security Best Practices
+
+<Warning>
+**Never hardcode secrets**: Always use environment variables or secure vaults for sensitive data.
+</Warning>
+
+### Secure Secret Storage
+
+```python
+# ✅ Good: Use environment variables
+import os
+totp_secret = os.environ.get('TOTP_SECRET')
+
+# ✅ Good: Use .env file
+from dotenv import load_dotenv
+load_dotenv()
+totp_secret = os.environ.get('TOTP_SECRET')
+
+# ✅ Good: Use password manager API
+# totp_secret = password_manager.get_secret('service_name')
+
+# ❌ Bad: Hardcoded secret
+totp_secret = 'JBSWY3DPEHPK3PXP'  # Never do this!
+```
+
+### Environment Variables Setup
+
+```bash .env
+# Store in .env file (add to .gitignore!)
+GMAIL_EMAIL=your.email@gmail.com
+GMAIL_PASSWORD=your_app_specific_password
+GMAIL_TOTP_SECRET=JBSWY3DPEHPK3PXP
+
+TWITTER_EMAIL=your.twitter@email.com
+TWITTER_PASSWORD=your_password
+TWITTER_TOTP_SECRET=ANOTHER_SECRET_KEY
+```
+
+## Handling 2FA Prompts
+
+Instruct the agent clearly on when to use 2FA codes:
+
+```python
+task = """
+Complete login process:
+
+1. Enter username and password
+2. Click 'Sign In'
+3. IMPORTANT: If you see any of these prompts:
+   - "Enter verification code"
+   - "Two-factor authentication"
+   - "Enter 6-digit code"
+   - "Authenticator code required"
+   
+   Then use the 'totp_secret' from sensitive_data to generate the code.
+
+4. DO NOT try to extract codes from emails or SMS
+5. ALWAYS use the provided TOTP secret for code generation
+6. Verify successful login by checking for account dashboard
+"""
+
+agent = Agent(
+    task=task,
+    sensitive_data={'totp_secret': 'YOUR_SECRET_HERE'}
+)
+```
+
+## Troubleshooting
+
+### Code Not Accepted
+
+If the 2FA code isn't accepted:
+
+1. **Check time sync**: TOTP codes are time-based. Ensure your system clock is accurate
+2. **Verify secret key**: Confirm you copied the full secret key without spaces
+3. **Wait for new code**: If too much time passes, wait for the next 30-second window
+
+### Multiple Failed Attempts
+
+```python
+task = """
+Log in with retry logic:
+
+1. Enter credentials
+2. When prompted for 2FA:
+   - Generate code from totp_secret
+   - Input the code
+   - If error "code expired" or "invalid code":
+     * Wait 5 seconds
+     * Generate a fresh code
+     * Try again (max 2 retries)
+3. After successful code entry, verify login
+"""
+
+agent = Agent(
+    task=task,
+    sensitive_data={'totp_secret': secret},
+    max_failures=3  # Allow retries
+)
+```
+
+## Related Examples
+
+- [Form Filling](/examples/form-filling) - Fill login forms with credentials
+- [Shopping](/examples/shopping) - Authenticate for shopping accounts
+- [Playwright Integration](/examples/playwright) - Use Playwright for deterministic 2FA input

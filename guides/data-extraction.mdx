@@ -1,0 +1,623 @@
+---
+title: 'Data Extraction'
+description: 'Extract structured data from web pages'
+icon: 'database'
+---
+
+## Overview
+
+Browser Use provides powerful data extraction capabilities:
+
+- **LLM-based extraction** - Natural language queries
+- **Structured output** - Type-safe Pydantic models
+- **Zero-cost tools** - `search_page` and `find_elements`
+- **Large content handling** - Automatic chunking
+- **Link extraction** - URLs and hrefs
+
+## Basic Extraction
+
+### Simple Extract Query
+
+```python
+from browser_use import Agent, ChatBrowserUse
+
+agent = Agent(
+    task="""
+    1. Go to news.ycombinator.com
+    2. Use extract action with query "first 5 post titles and their URLs"
+    """,
+    llm=ChatBrowserUse(),
+)
+
+result = await agent.run()
+print(result.final_result())
+```
+
+<Tip>
+  Always explicitly mention "use extract action" in your task for best results.
+</Tip>
+
+### Extract with Links
+
+```python
+agent = Agent(
+    task="""
+    1. Go to github.com/trending
+    2. Extract the top 10 repositories with:
+       - Repository name
+       - Description
+       - Stars count
+       - Repository URL (set extract_links=True)
+    """,
+    llm=ChatBrowserUse(),
+)
+```
+
+## Structured Output
+
+Use Pydantic models for type-safe extraction:
+
+<Steps>
+  <Step title="Define Your Schema">
+    ```python
+    from pydantic import BaseModel
+    from typing import List
+
+    class Post(BaseModel):
+        title: str
+        url: str
+        points: int
+        num_comments: int
+
+    class HackerNewsPosts(BaseModel):
+        posts: List[Post]
+    ```
+  </Step>
+
+  <Step title="Pass Schema to Agent">
+    ```python
+    from browser_use import Agent, ChatBrowserUse
+
+    agent = Agent(
+        task="Go to Hacker News and extract the top 10 posts",
+        llm=ChatBrowserUse(),
+        output_model_schema=HackerNewsPosts,
+    )
+    ```
+  </Step>
+
+  <Step title="Parse Results">
+    ```python
+    history = await agent.run()
+
+    # Get structured output
+    result_json = history.final_result()
+    parsed = HackerNewsPosts.model_validate_json(result_json)
+
+    # Use typed data
+    for post in parsed.posts:
+        print(f"Title: {post.title}")
+        print(f"URL: {post.url}")
+        print(f"Points: {post.points}")
+        print(f"Comments: {post.num_comments}")
+        print("---")
+    ```
+  </Step>
+</Steps>
+
+### Complete Example
+
+```python
+from browser_use import Agent, ChatBrowserUse
+from pydantic import BaseModel
+from typing import List
+import asyncio
+
+class Product(BaseModel):
+    name: str
+    price: float
+    rating: float
+    url: str
+
+class Products(BaseModel):
+    products: List[Product]
+
+async def main():
+    agent = Agent(
+        task="Go to example-shop.com and extract the first 10 products",
+        llm=ChatBrowserUse(),
+        output_model_schema=Products,
+    )
+    
+    history = await agent.run()
+    
+    if history.is_done():
+        result = Products.model_validate_json(history.final_result())
+        
+        # Save to CSV
+        import csv
+        with open('products.csv', 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=['name', 'price', 'rating', 'url'])
+            writer.writeheader()
+            for product in result.products:
+                writer.writerow(product.model_dump())
+        
+        print(f"Extracted {len(result.products)} products to products.csv")
+
+asyncio.run(main())
+```
+
+## Advanced Extraction
+
+### Chunked Extraction
+
+For large pages, use `start_from_char` to extract in chunks:
+
+```python
+agent = Agent(
+    task="""
+    1. Go to long-article.com
+    2. Extract all product names using extract action
+    3. If truncated, use start_from_char parameter to continue
+    """,
+    llm=ChatBrowserUse(),
+)
+```
+
+The agent automatically handles truncation:
+- First call: extracts 0 to 100,000 chars
+- If truncated, response includes `next_start_char`
+- Agent calls extract again with `start_from_char=100000`
+
+### Custom Extraction Schema
+
+Pass schema directly in the extract action:
+
+```python
+agent = Agent(
+    task="""
+    1. Go to news site
+    2. Use extract action with output_schema:
+       {
+         "type": "object",
+         "properties": {
+           "articles": {
+             "type": "array",
+             "items": {
+               "type": "object",
+               "properties": {
+                 "headline": {"type": "string"},
+                 "author": {"type": "string"},
+                 "published_date": {"type": "string"},
+                 "summary": {"type": "string"}
+               }
+             }
+           }
+         }
+       }
+    """,
+    llm=ChatBrowserUse(),
+)
+```
+
+## Zero-Cost Extraction Tools
+
+These tools don't use the LLM, so they're instant and free:
+
+### search_page
+
+Find text patterns on the page:
+
+```python
+from browser_use import Agent, ChatBrowserUse
+
+agent = Agent(
+    task="""
+    1. Go to documentation page
+    2. Use search_page action to find all occurrences of 'API key'
+    3. Report the count and locations
+    """,
+    llm=ChatBrowserUse(),
+)
+```
+
+**Parameters:**
+- `pattern`: Text or regex pattern to search
+- `regex`: Set to `True` for regex patterns
+- `case_sensitive`: Case-sensitive matching
+- `context_chars`: Characters of context around matches
+- `max_results`: Limit results returned
+- `css_scope`: Search within specific element
+
+**Example with regex:**
+```python
+task="""
+1. Go to pricing page
+2. Use search_page with pattern='\$\d+\.\d{2}' and regex=True
+3. Extract all prices found
+"""
+```
+
+### find_elements
+
+Query DOM elements by CSS selector:
+
+```python
+agent = Agent(
+    task="""
+    1. Go to product listing
+    2. Use find_elements with selector='.product-card'
+    3. Use attributes=['data-id', 'href'] to get product IDs and links
+    4. Report the count and data
+    """,
+    llm=ChatBrowserUse(),
+)
+```
+
+**Parameters:**
+- `selector`: CSS selector (e.g., `.class`, `#id`, `tag[attr="value"]`)
+- `attributes`: List of attributes to extract
+- `include_text`: Include element text content
+- `max_results`: Limit results
+
+**Example:**
+```python
+task="""
+1. Go to links page
+2. Use find_elements with:
+   - selector='a.external-link'
+   - attributes=['href', 'title']
+   - include_text=True
+3. Count and list all external links
+"""
+```
+
+## Multi-Page Extraction
+
+### Sequential Pages
+
+```python
+from browser_use import Agent, ChatBrowserUse
+
+agent = Agent(
+    task="""
+    1. Go to example-shop.com/products
+    2. Extract all products on page 1
+    3. Click 'Next' to go to page 2
+    4. Extract all products on page 2
+    5. Continue until page 5
+    6. Combine all results
+    """,
+    llm=ChatBrowserUse(),
+    output_model_schema=Products,
+    max_steps=50,
+)
+```
+
+### Pagination with Custom Tool
+
+```python
+from browser_use import Tools, ActionResult, Agent, ChatBrowserUse, BrowserSession
+from typing import List
+import json
+
+tools = Tools()
+all_data = []
+
+@tools.action('Save extracted data to collection')
+async def save_data(items: List[dict]) -> ActionResult:
+    all_data.extend(items)
+    return ActionResult(
+        extracted_content=f"Saved {len(items)} items. Total: {len(all_data)}"
+    )
+
+@tools.action('Export all collected data to file')
+async def export_data() -> ActionResult:
+    with open('extracted_data.json', 'w') as f:
+        json.dump(all_data, f, indent=2)
+    
+    return ActionResult(
+        extracted_content=f"Exported {len(all_data)} items to extracted_data.json",
+        is_done=True
+    )
+
+agent = Agent(
+    task="""
+    1. Go to products page
+    2. Extract products on current page and save_data
+    3. If 'Next' button exists, click it and repeat step 2
+    4. When no more pages, call export_data
+    """,
+    llm=ChatBrowserUse(),
+    tools=tools,
+)
+```
+
+## Table Extraction
+
+### Simple Tables
+
+```python
+from pydantic import BaseModel
+from typing import List
+
+class TableRow(BaseModel):
+    column1: str
+    column2: str
+    column3: float
+
+class TableData(BaseModel):
+    headers: List[str]
+    rows: List[TableRow]
+
+agent = Agent(
+    task="""
+    1. Go to page with data table
+    2. Extract all rows from the table
+    """,
+    llm=ChatBrowserUse(),
+    output_model_schema=TableData,
+)
+```
+
+### Large Tables with Scrolling
+
+```python
+agent = Agent(
+    task="""
+    1. Go to page with large table
+    2. Scroll down to load more rows
+    3. Repeat scrolling until no new rows appear
+    4. Extract all visible table data
+    """,
+    llm=ChatBrowserUse(),
+    max_steps=100,
+)
+```
+
+## Dynamic Content
+
+### Wait for Content Load
+
+```python
+agent = Agent(
+    task="""
+    1. Go to dynamic page
+    2. Wait for 3 seconds to let content load
+    3. If loading spinner still visible, wait 3 more seconds
+    4. Extract data once fully loaded
+    """,
+    llm=ChatBrowserUse(),
+)
+```
+
+### Infinite Scroll
+
+```python
+agent = Agent(
+    task="""
+    1. Go to infinite scroll page
+    2. Scroll down 10 pages to load content
+    3. Extract all loaded items
+    4. Save results
+    """,
+    llm=ChatBrowserUse(),
+)
+```
+
+### AJAX/API Responses
+
+```python
+from browser_use import Tools, ActionResult, BrowserSession
+
+tools = Tools()
+
+@tools.action('Execute JavaScript and return result')
+async def get_page_data(browser_session: BrowserSession) -> ActionResult:
+    cdp_session = await browser_session.get_or_create_cdp_session()
+    
+    # Access window.__DATA__ or similar client-side data
+    result = await cdp_session.cdp_client.send.Runtime.evaluate(
+        params={
+            'expression': 'JSON.stringify(window.__APP_DATA__)',
+            'returnByValue': True
+        },
+        session_id=cdp_session.session_id
+    )
+    
+    data = result.get('result', {}).get('value', '{}')
+    
+    return ActionResult(
+        extracted_content=f"Extracted data: {data}"
+    )
+
+agent = Agent(
+    task="""
+    1. Go to SPA application
+    2. Use get_page_data to extract client-side data
+    """,
+    llm=ChatBrowserUse(),
+    tools=tools,
+)
+```
+
+## Saving Extracted Data
+
+### To CSV
+
+```python
+import csv
+from browser_use import Agent, ChatBrowserUse
+from pydantic import BaseModel
+from typing import List
+
+class Item(BaseModel):
+    name: str
+    value: float
+
+class Items(BaseModel):
+    items: List[Item]
+
+agent = Agent(
+    task="Extract data from page",
+    llm=ChatBrowserUse(),
+    output_model_schema=Items,
+)
+
+result = await agent.run()
+parsed = Items.model_validate_json(result.final_result())
+
+with open('output.csv', 'w', newline='') as f:
+    writer = csv.DictWriter(f, fieldnames=['name', 'value'])
+    writer.writeheader()
+    for item in parsed.items:
+        writer.writerow(item.model_dump())
+```
+
+### To JSON
+
+```python
+import json
+
+result = await agent.run()
+parsed = Items.model_validate_json(result.final_result())
+
+with open('output.json', 'w') as f:
+    json.dump(parsed.model_dump(), f, indent=2)
+```
+
+### To Database
+
+```python
+import asyncpg
+from browser_use import Tools, ActionResult
+
+tools = Tools()
+
+@tools.action('Save items to database')
+async def save_to_db(items: List[dict]) -> ActionResult:
+    conn = await asyncpg.connect(
+        user='user', password='pass',
+        database='mydb', host='localhost'
+    )
+    
+    try:
+        for item in items:
+            await conn.execute(
+                'INSERT INTO products (name, price, url) VALUES ($1, $2, $3)',
+                item['name'], item['price'], item['url']
+            )
+        
+        return ActionResult(
+            extracted_content=f"Saved {len(items)} items to database"
+        )
+    finally:
+        await conn.close()
+
+agent = Agent(
+    task="Extract products and save_to_db",
+    llm=ChatBrowserUse(),
+    tools=tools,
+)
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Be Specific">
+    ✅ **Good:**
+    ```python
+    task="Use extract action to get the product name, price, rating, and URL for the first 10 products"
+    ```
+
+    ❌ **Bad:**
+    ```python
+    task="Get some products"
+    ```
+  </Step>
+
+  <Step title="Use Structured Output">
+    Define Pydantic models for type safety and validation:
+    ```python
+    output_model_schema=Products  # Type-safe
+    ```
+  </Step>
+
+  <Step title="Handle Large Content">
+    Let the agent handle chunking automatically:
+    ```python
+    task="Extract all data. If truncated, continue with start_from_char"
+    ```
+  </Step>
+
+  <Step title="Use Zero-Cost Tools When Possible">
+    ```python
+    # Fast and free
+    task="Use search_page to find all email addresses"
+    
+    # Instead of
+    task="Use extract to find all email addresses"  # Costs LLM tokens
+    ```
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### Incomplete Extraction
+
+Increase max_steps:
+```python
+agent = Agent(
+    task="Extract large dataset",
+    llm=ChatBrowserUse(),
+    max_steps=200,  # Default is 100
+)
+```
+
+### Extraction Timeouts
+
+Increase timeouts:
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+browser = Browser(
+    wait_for_network_idle_page_load_time=2.0,  # Wait longer for AJAX
+)
+
+agent = Agent(
+    task="Extract data",
+    llm=ChatBrowserUse(),
+    browser=browser,
+    step_timeout=180,  # 3 minutes per step
+)
+```
+
+### Missing Data
+
+Wait for dynamic content:
+```python
+task="""
+1. Go to page
+2. Wait 5 seconds for content to load
+3. Scroll down to trigger lazy loading
+4. Wait 2 more seconds
+5. Extract data
+"""
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Structured Output Example" icon="code" href="https://github.com/browser-use/browser-use/blob/main/examples/features/custom_output.py">
+    See full working example
+  </Card>
+  <Card title="Custom Tools" icon="wrench" href="/guides/custom-tools">
+    Build extraction tools
+  </Card>
+  <Card title="Production" icon="rocket" href="/guides/production">
+    Scale extraction workflows
+  </Card>
+  <Card title="Available Tools" icon="list" href="/customize/tools/available">
+    See all extraction tools
+  </Card>
+</CardGroup>

@@ -1,0 +1,417 @@
+---
+title: 'ChatOllama'
+description: 'Local Ollama LLM provider for Browser Use'
+---
+
+## Overview
+
+ChatOllama provides integration with locally running Ollama models, enabling completely private and offline browser automation without sending data to external APIs.
+
+## Basic Usage
+
+```python
+from browser_use import Agent, ChatOllama
+import asyncio
+
+async def main():
+    llm = ChatOllama(model='llama3.2')
+    agent = Agent(
+        task="Find the number 1 post on Show HN",
+        llm=llm,
+    )
+    await agent.run()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## Prerequisites
+
+1. **Install Ollama**: Download from [ollama.com](https://ollama.com)
+2. **Pull a model**: `ollama pull llama3.2`
+3. **Start Ollama**: It runs automatically after installation
+
+```bash
+# Pull recommended models
+ollama pull llama3.2
+ollama pull llama3.2:70b
+ollama pull qwen2.5-coder:32b
+
+# Verify Ollama is running
+curl http://localhost:11434
+```
+
+## Configuration
+
+### Required Parameters
+
+<ParamField path="model" type="str" required>
+  Ollama model name. Popular options:
+  - `llama3.2`: Fast and capable
+  - `llama3.2:70b`: More powerful
+  - `qwen2.5-coder:32b`: Great for web tasks
+  - `mistral`: Alternative option
+  - `codellama`: Coding focused
+</ParamField>
+
+### Client Parameters
+
+<ParamField path="host" type="str" default="None">
+  Ollama server URL. Defaults to `http://localhost:11434`.
+</ParamField>
+
+<ParamField path="timeout" type="float" default="None">
+  Request timeout in seconds.
+</ParamField>
+
+<ParamField path="client_params" type="dict" default="None">
+  Additional parameters for the Ollama client.
+</ParamField>
+
+<ParamField path="ollama_options" type="Options" default="None">
+  Ollama-specific options for model behavior.
+  
+  Common options:
+  - `temperature`: Sampling temperature
+  - `num_predict`: Max tokens to generate
+  - `top_k`: Top-K sampling
+  - `top_p`: Top-P sampling
+  - `repeat_penalty`: Repetition penalty
+</ParamField>
+
+## Advanced Usage
+
+### Custom Ollama Host
+
+```python
+from browser_use import Agent, ChatOllama
+
+# Connect to remote Ollama instance
+llm = ChatOllama(
+    model='llama3.2',
+    host='http://192.168.1.100:11434',
+)
+
+agent = Agent(task="Your task", llm=llm)
+```
+
+### With Ollama Options
+
+```python
+from browser_use import Agent, ChatOllama
+from ollama import Options
+
+llm = ChatOllama(
+    model='llama3.2',
+    ollama_options=Options(
+        temperature=0.7,
+        num_predict=2048,
+        top_k=40,
+        top_p=0.9,
+        repeat_penalty=1.1,
+    ),
+)
+
+agent = Agent(task="Your task", llm=llm)
+```
+
+### Structured Output
+
+```python
+from browser_use import Agent, ChatOllama
+from pydantic import BaseModel
+
+class SearchResult(BaseModel):
+    title: str
+    description: str
+    url: str
+
+llm = ChatOllama(model='llama3.2')
+
+agent = Agent(
+    task="Extract search result",
+    llm=llm,
+    output_model_schema=SearchResult,
+)
+
+result = await agent.run()
+print(result.structured_output)  # SearchResult instance
+```
+
+### Custom Timeout for Large Models
+
+```python
+from browser_use import Agent, ChatOllama
+import httpx
+
+llm = ChatOllama(
+    model='llama3.2:70b',
+    timeout=300.0,  # 5 minutes for large model
+)
+
+agent = Agent(task="Complex task", llm=llm)
+```
+
+### Using Dictionary Options
+
+```python
+from browser_use import Agent, ChatOllama
+
+llm = ChatOllama(
+    model='qwen2.5-coder:32b',
+    ollama_options={
+        'temperature': 0.2,
+        'num_predict': 4096,
+        'top_p': 0.95,
+    },
+)
+
+agent = Agent(task="Your task", llm=llm)
+```
+
+## Setup Guide
+
+### macOS
+
+```bash
+# Install Ollama
+brew install ollama
+
+# Or download from ollama.com
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Start service
+ollama serve
+
+# Pull model
+ollama pull llama3.2
+```
+
+### Linux
+
+```bash
+# Install
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Start service (usually auto-starts)
+sudo systemctl start ollama
+
+# Pull model
+ollama pull llama3.2
+```
+
+### Windows
+
+1. Download installer from [ollama.com](https://ollama.com)
+2. Run installer
+3. Open terminal and run: `ollama pull llama3.2`
+
+### Docker
+
+```bash
+# Run Ollama in Docker
+docker run -d \
+  --name ollama \
+  -p 11434:11434 \
+  -v ollama:/root/.ollama \
+  ollama/ollama
+
+# Pull model
+docker exec ollama ollama pull llama3.2
+```
+
+## Error Handling
+
+```python
+from browser_use import Agent, ChatOllama
+from browser_use.llm.exceptions import ModelProviderError
+import httpx
+
+try:
+    llm = ChatOllama(model='llama3.2')
+    agent = Agent(task="Your task", llm=llm)
+    result = await agent.run()
+except ModelProviderError as e:
+    print(f"Ollama error: {e.message}")
+    print("Make sure Ollama is running: ollama serve")
+except httpx.ConnectError:
+    print("Cannot connect to Ollama. Is it running?")
+    print("Start with: ollama serve")
+```
+
+## Properties
+
+### provider
+
+Returns the provider name: `"ollama"`
+
+```python
+llm = ChatOllama(model='llama3.2')
+print(llm.provider)  # "ollama"
+```
+
+### name
+
+Returns the model name.
+
+```python
+llm = ChatOllama(model='llama3.2')
+print(llm.name)  # "llama3.2"
+```
+
+## Methods
+
+### get_client()
+
+Returns an `OllamaAsyncClient` instance.
+
+```python
+llm = ChatOllama(model='llama3.2')
+client = llm.get_client()
+# Use client directly for advanced operations
+```
+
+### ainvoke()
+
+Asynchronously invoke the model with messages.
+
+```python
+from browser_use.llm.messages import SystemMessage, UserMessage
+
+llm = ChatOllama(model='llama3.2')
+
+messages = [
+    SystemMessage(content="You are a helpful assistant"),
+    UserMessage(content="What is Browser Use?")
+]
+
+response = await llm.ainvoke(messages)
+print(response.completion)  # String response
+```
+
+#### Parameters
+
+- **messages** (`list[BaseMessage]`): List of messages
+- **output_format** (`type[T] | None`): Optional Pydantic model for structured output
+
+#### Returns
+
+`ChatInvokeCompletion[T] | ChatInvokeCompletion[str]` with:
+- `completion`: Response content (string or structured output)
+- `usage`: Currently `None` for Ollama (not tracked)
+
+<Note>
+  Ollama does not currently provide token usage information in responses.
+</Note>
+
+## Recommended Models
+
+### For Speed
+- **llama3.2** (8B): Fast, good quality
+- **qwen2.5-coder** (7B): Great for web tasks
+- **mistral** (7B): Balanced performance
+
+### For Quality
+- **llama3.2:70b**: Best quality, slower
+- **qwen2.5-coder:32b**: Excellent for browser automation
+- **mixtral:8x7b**: High quality mixture of experts
+
+### For Resource-Constrained
+- **llama3.2:3b**: Very fast on CPU
+- **phi3**: Microsoft's efficient model
+- **tinyllama**: Minimal resource usage
+
+```bash
+# Check model sizes
+ollama list
+
+# Remove unused models
+ollama rm model-name
+```
+
+## Performance Tips
+
+1. **GPU Acceleration**: Ollama automatically uses GPU if available
+2. **Model Size**: Smaller models are faster but less capable
+3. **num_predict**: Limit output tokens for faster responses
+4. **Preload Models**: Models load faster after first use
+
+```python
+# Optimize for speed
+llm = ChatOllama(
+    model='llama3.2',
+    ollama_options={
+        'num_predict': 512,  # Limit output length
+        'num_ctx': 2048,     # Smaller context window
+    },
+)
+```
+
+## Troubleshooting
+
+### Ollama Not Running
+
+```bash
+# Check if Ollama is running
+curl http://localhost:11434
+
+# Start Ollama
+ollama serve
+
+# Or on Linux with systemd
+sudo systemctl start ollama
+sudo systemctl status ollama
+```
+
+### Model Not Found
+
+```bash
+# List installed models
+ollama list
+
+# Pull missing model
+ollama pull llama3.2
+```
+
+### Connection Refused
+
+```python
+# Verify correct host
+llm = ChatOllama(
+    model='llama3.2',
+    host='http://localhost:11434',  # Default
+)
+```
+
+### Slow Performance
+
+```bash
+# Use smaller model
+ollama pull llama3.2:3b
+
+# Check GPU usage
+nvidia-smi  # For NVIDIA GPUs
+
+# Reduce context size in options
+```
+
+## Benefits of Ollama
+
+1. **Privacy**: All data stays on your machine
+2. **No API Costs**: Free to use
+3. **Offline Capable**: Works without internet
+4. **Fast**: Low latency on local hardware
+5. **Customizable**: Full control over models and parameters
+
+## Limitations
+
+1. **No Usage Tracking**: Token counts not available
+2. **Hardware Dependent**: Performance varies by hardware
+3. **Model Quality**: May not match GPT-4 or Claude for complex tasks
+4. **Setup Required**: Need to install and manage Ollama
+
+## Related
+
+- [ChatBrowserUse](/api/llm/chat-browser-use) - Recommended for production
+- [ChatOpenAI](/api/llm/chat-openai)
+- [Ollama Documentation](https://github.com/ollama/ollama)

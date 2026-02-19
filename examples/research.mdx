@@ -1,0 +1,369 @@
+---
+title: Research & Information Gathering
+description: Collect and analyze information from multiple sources with Browser Use
+icon: magnifying-glass
+---
+
+Browser Use excels at gathering information from multiple websites, analyzing content, and synthesizing research findings.
+
+## Basic Research Task
+
+Gather information on a specific topic:
+
+```python
+import asyncio
+from browser_use import Agent, ChatBrowserUse
+
+async def main():
+    task = """
+    Research the latest developments in quantum computing:
+    1. Search for recent news articles (last 30 days)
+    2. Find 3-5 key developments or breakthroughs
+    3. Summarize each finding with:
+       - Title
+       - Source
+       - Date
+       - Key points
+    4. Identify common themes across articles
+    """
+    
+    agent = Agent(task=task, llm=ChatBrowserUse())
+    result = await agent.run()
+
+if __name__ == '__main__':
+    asyncio.run(main())
+```
+
+## Multi-Source Research
+
+Gather information from specific sources:
+
+```python
+task = """
+Research electric vehicle market trends:
+
+Sources to check:
+1. Tesla investor relations page
+2. Bloomberg automotive section
+3. TechCrunch transportation category
+
+For each source, extract:
+- Latest articles/reports about EV sales
+- Market share data
+- Future predictions
+
+Compile findings into a comprehensive summary comparing 
+perspectives from each source.
+"""
+
+agent = Agent(
+    task=task,
+    llm=ChatBrowserUse(),
+    max_steps=100  # Allow more steps for thorough research
+)
+```
+
+## Social Media Research
+
+Find and analyze social media profiles:
+
+```python
+import asyncio
+from pydantic import BaseModel
+from browser_use import Agent, ChatOpenAI, Tools
+from browser_use.agent.views import ActionResult
+
+class Profile(BaseModel):
+    platform: str
+    profile_url: str
+
+class Profiles(BaseModel):
+    profiles: list[Profile]
+
+tools = Tools(exclude_actions=['search'], output_model=Profiles)
+
+@tools.registry.action('Search the web for a specific query')
+async def search_web(query: str):
+    """Custom search implementation for better results"""
+    # Your search API implementation here
+    pass
+
+async def main():
+    task = """
+    Find social media profiles for the TikTok user from this video:
+    https://www.tiktok.com/share/video/7470981717659110678/
+    
+    1. Open the TikTok video
+    2. Extract the @username from the URL or page
+    3. Search the web for this username
+    4. Find their profiles on:
+       - Instagram
+       - Twitter/X
+       - YouTube
+       - LinkedIn
+    5. Return the profile URLs with platform names
+    """
+    
+    agent = Agent(task=task, llm=ChatOpenAI(model='gpt-4.1-mini'), tools=tools)
+    history = await agent.run()
+    
+    # Access structured output
+    if history and history.structured_output:
+        profiles = history.structured_output
+        for profile in profiles.profiles:
+            print(f'{profile.platform}: {profile.profile_url}')
+
+if __name__ == '__main__':
+    asyncio.run(main())
+```
+
+## Competitive Analysis
+
+Compare competitors across multiple dimensions:
+
+```python
+from pydantic import BaseModel, Field
+
+class CompanyInfo(BaseModel):
+    name: str
+    website: str
+    pricing_model: str
+    key_features: list[str]
+    target_market: str
+    latest_news: str
+
+class CompetitiveAnalysis(BaseModel):
+    competitors: list[CompanyInfo]
+    market_leader: str
+    key_differentiators: dict[str, str]
+
+async def analyze_competitors(industry: str):
+    task = f"""
+    Research top 5 companies in the {industry} industry:
+    
+    For each company:
+    1. Visit their website
+    2. Extract:
+       - Company name
+       - Pricing model
+       - Key features/products
+       - Target market
+       - Recent news or product launches
+    
+    Analysis:
+    - Identify the market leader
+    - Compare key differentiators
+    - Note unique selling propositions
+    """
+    
+    agent = Agent(
+        task=task,
+        llm=ChatBrowserUse(),
+        output_model_schema=CompetitiveAnalysis
+    )
+    
+    return await agent.run()
+```
+
+## News Aggregation
+
+Collect news from multiple sources on a topic:
+
+```python
+task = """
+Aggregate news about artificial intelligence from:
+1. TechCrunch (https://techcrunch.com)
+2. The Verge (https://www.theverge.com)
+3. Hacker News (https://news.ycombinator.com)
+
+For each site:
+- Find the top 3 AI-related articles from today
+- Extract: headline, summary, publication time, URL
+
+Organize by publication time (newest first) and 
+identify any overlapping stories across sources.
+"""
+
+agent = Agent(task=task, llm=ChatBrowserUse())
+```
+
+## Academic Research
+
+Gather information from academic sources:
+
+```python
+task = """
+Research papers on machine learning optimization:
+
+1. Go to Google Scholar (https://scholar.google.com)
+2. Search for "machine learning optimization techniques" 
+   published in last 2 years
+3. Extract top 10 papers with:
+   - Title
+   - Authors
+   - Publication venue
+   - Citation count
+   - Abstract (first 200 words)
+   - PDF link if available
+
+4. Identify the most cited papers
+5. Find common methodologies across papers
+"""
+
+agent = Agent(
+    task=task,
+    llm=ChatBrowserUse(),
+    max_steps=80
+)
+```
+
+## Product Research
+
+Research product specifications and reviews:
+
+```python
+task = """
+Research the iPhone 15 Pro:
+
+Information to gather:
+1. Official specs from Apple.com:
+   - Display size and technology
+   - Processor
+   - Camera specifications
+   - Battery life
+   - Storage options
+   - Price for each variant
+
+2. Reviews from:
+   - CNET
+   - The Verge
+   - TechRadar
+
+3. For each review, extract:
+   - Overall rating
+   - Pros and cons
+   - Verdict summary
+
+4. Compare findings and create a comprehensive summary
+   highlighting consensus opinions and outliers.
+"""
+```
+
+## Market Research
+
+Analyze market trends and consumer sentiment:
+
+```python
+task = """
+Market research for sustainable fashion brands:
+
+1. Identify top 10 sustainable fashion brands
+2. For each brand visit their website and extract:
+   - Sustainability practices
+   - Price range
+   - Target demographic
+   - Unique value proposition
+
+3. Check social media presence:
+   - Instagram follower count
+   - Recent post engagement
+   - Brand sentiment in comments
+
+4. Search for industry reports on sustainable fashion market size
+
+5. Compile findings into market overview with:
+   - Market leaders
+   - Price positioning
+   - Growth trends
+   - Consumer preferences
+"""
+
+agent = Agent(
+    task=task,
+    llm=ChatBrowserUse(),
+    max_steps=150  # Complex research needs more steps
+)
+```
+
+## Wikipedia Research
+
+Extract structured information from Wikipedia:
+
+```python
+task = """
+Research quantum computing on Wikipedia:
+
+1. Go to Wikipedia article on Quantum Computing
+2. Extract:
+   - Introduction summary
+   - Key principles (from "Principles" section)
+   - Current applications
+   - Major companies/organizations involved
+   - Timeline of developments
+   - References to notable papers
+
+3. Follow links to related articles:
+   - Quantum supremacy
+   - Quantum algorithm
+   
+4. Create a comprehensive overview with sources
+"""
+```
+
+## Research Best Practices
+
+<Steps>
+  <Step title="Define Clear Objectives">
+    Specify exactly what information you need and from which sources
+  </Step>
+  
+  <Step title="Structure Your Output">
+    Use Pydantic models to ensure consistent data format across sources
+  </Step>
+  
+  <Step title="Verify Information">
+    Cross-reference facts from multiple sources for accuracy
+  </Step>
+  
+  <Step title="Save Your Progress">
+    Use `save_conversation_path` to preserve research history
+  </Step>
+</Steps>
+
+<Note>
+**Performance Tip**: For extensive research, increase `max_steps` to allow thorough investigation across multiple sites.
+</Note>
+
+<Warning>
+Always respect website terms of service and robots.txt when conducting research at scale.
+</Warning>
+
+## Advanced Research Patterns
+
+### Iterative Deep Dive
+```python
+task = """
+Start with broad topic "renewable energy", then:
+1. Identify the 3 most promising subtopics
+2. For each subtopic, find top 3 authoritative sources
+3. From those sources, extract key statistics and trends
+4. Synthesize findings into a structured report
+"""
+```
+
+### Comparative Analysis
+```python
+task = """
+Compare cloud providers (AWS vs Azure vs GCP):
+1. Visit pricing pages for each
+2. Compare equivalent services (compute, storage, database)
+3. Check documentation quality
+4. Review customer case studies
+5. Create side-by-side comparison table
+"""
+```
+
+## Related Examples
+
+- [Data Scraping](/examples/data-scraping) - Extract structured data from websites
+- [Shopping](/examples/shopping) - Product research and price comparison

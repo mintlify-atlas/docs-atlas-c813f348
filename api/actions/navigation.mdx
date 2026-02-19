@@ -1,0 +1,101 @@
+---
+title: "Navigation Actions"
+description: "Actions for navigating web pages and controlling browser history"
+icon: "compass"
+mode: "wide"
+---
+
+Navigation actions control how the agent moves between pages and searches the web.
+
+## search
+
+Search for a query using a search engine.
+
+<ParamField path="query" type="string" required>
+  The search query to execute
+</ParamField>
+
+<ParamField path="engine" type="string" default="duckduckgo">
+  Search engine to use. Options: `duckduckgo`, `google`, `bing`
+  
+  Default is `duckduckgo` because it has fewer captchas.
+</ParamField>
+
+### Example
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+agent = Agent(
+    task="Search for 'browser automation' on Google",
+    llm=ChatBrowserUse(),
+    browser=Browser()
+)
+
+await agent.run()
+```
+
+**Implementation:** `browser_use.tools.service:365`
+
+---
+
+## navigate
+
+Navigate to a specific URL.
+
+<ParamField path="url" type="string" required>
+  The URL to navigate to. Must include protocol (http:// or https://)
+</ParamField>
+
+<ParamField path="new_tab" type="bool" default="False">
+  Whether to open the URL in a new tab
+</ParamField>
+
+### Example
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+agent = Agent(
+    task="Go to https://example.com and open https://github.com in a new tab",
+    llm=ChatBrowserUse(),
+    browser=Browser()
+)
+
+await agent.run()
+```
+
+**Implementation:** `browser_use.tools.service:411`
+
+---
+
+## go_back
+
+Navigate back in browser history.
+
+<Note>
+  This action takes no parameters.
+</Note>
+
+### Example
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+agent = Agent(
+    task="Visit example.com, then go back",
+    llm=ChatBrowserUse(),
+    browser=Browser()
+)
+
+await agent.run()
+```
+
+**Implementation:** `browser_use.tools.service:455`
+
+---
+
+## Related Actions
+
+- [Interaction Actions](/api/actions/interaction) - Click, input, and interact with page elements
+- [Extraction Actions](/api/actions/extraction) - Extract data from pages

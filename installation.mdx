@@ -1,0 +1,590 @@
+---
+title: Installation
+description: Complete installation guide for Browser Use with all options and configurations
+---
+
+## System Requirements
+
+Before installing Browser Use, verify your system meets these requirements:
+
+<CardGroup cols={2}>
+  <Card title="Python Version" icon="python">
+    **Python 3.11 or higher** is required
+  </Card>
+  <Card title="Operating Systems" icon="desktop">
+    macOS, Linux, Windows (including WSL)
+  </Card>
+  <Card title="Memory" icon="memory">
+    Minimum 4GB RAM (8GB+ recommended)
+  </Card>
+  <Card title="Disk Space" icon="hard-drive">
+    ~500MB for Browser Use + Chromium
+  </Card>
+</CardGroup>
+
+### Check Python Version
+
+```bash
+python --version
+# or
+python3 --version
+```
+
+<Warning>
+  If you're running Python 3.10 or earlier, you must upgrade to Python 3.11+ before installing Browser Use.
+</Warning>
+
+## Installation Methods
+
+### Method 1: Using uv (Recommended)
+
+[uv](https://docs.astral.sh/uv/) is a fast, modern Python package manager that simplifies dependency management:
+
+<Steps>
+  <Step title="Install uv">
+    <CodeGroup>
+      ```bash macOS/Linux
+      curl -LsSf https://astral.sh/uv/install.sh | sh
+      ```
+      
+      ```bash Windows
+      powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+      ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Create virtual environment">
+    ```bash
+    uv venv --python 3.11
+    ```
+    
+    This creates a `.venv` directory with an isolated Python environment.
+  </Step>
+
+  <Step title="Activate the environment">
+    <CodeGroup>
+      ```bash macOS/Linux
+      source .venv/bin/activate
+      ```
+      
+      ```bash Windows
+      .venv\Scripts\activate
+      ```
+    </CodeGroup>
+    
+    You should see `(.venv)` in your terminal prompt.
+  </Step>
+
+  <Step title="Install Browser Use">
+    ```bash
+    uv add browser-use
+    uv sync
+    ```
+    
+    <Note>
+      We ship updates daily! Always use the latest version for best performance and newest features.
+    </Note>
+  </Step>
+
+  <Step title="Install Chromium browser">
+    ```bash
+    uvx browser-use install
+    ```
+    
+    This downloads a compatible Chromium browser (separate from your system Chrome/Chromium).
+  </Step>
+</Steps>
+
+### Method 2: Using pip
+
+If you prefer traditional pip:
+
+<Steps>
+  <Step title="Create virtual environment">
+    ```bash
+    python -m venv .venv
+    ```
+  </Step>
+
+  <Step title="Activate environment">
+    <CodeGroup>
+      ```bash macOS/Linux
+      source .venv/bin/activate
+      ```
+      
+      ```bash Windows
+      .venv\Scripts\activate
+      ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Install Browser Use">
+    ```bash
+    pip install browser-use
+    ```
+  </Step>
+
+  <Step title="Install Chromium">
+    ```bash
+    python -m browser_use install
+    ```
+  </Step>
+</Steps>
+
+### Method 3: Install from Source (Development)
+
+For contributors or those who want the absolute latest code:
+
+```bash
+# Clone the repository
+git clone https://github.com/browser-use/browser-use
+cd browser-use
+
+# Install with uv
+uv sync --all-extras --dev
+
+# Or with pip
+pip install -e ".[all]"
+
+# Install Chromium
+uvx browser-use install
+```
+
+<Note>
+  The development installation includes testing tools, linting, and all optional dependencies.
+</Note>
+
+## Optional Dependencies
+
+Browser Use has several optional feature sets you can install:
+
+### CLI Features
+
+```bash
+# Terminal UI for interactive browser control
+uv add "browser-use[cli]"
+# or
+pip install "browser-use[cli]"
+```
+
+Enables the `browser-use` CLI tool for fast, persistent browser automation:
+
+```bash
+browser-use open https://example.com
+browser-use click 5
+browser-use screenshot page.png
+```
+
+### Video Recording
+
+```bash
+# Enable video recording of agent sessions
+uv add "browser-use[video]"
+# or
+pip install "browser-use[video]"
+```
+
+Allows you to record agent sessions as MP4 videos:
+
+```python
+browser = Browser(record_video_dir='./recordings')
+```
+
+### Cloud Providers
+
+```bash
+# AWS integration
+uv add "browser-use[aws]"
+
+# Oracle Cloud Infrastructure
+uv add "browser-use[oci]"
+```
+
+### Code Execution
+
+```bash
+# Jupyter-like code execution for agents
+uv add "browser-use[code]"
+```
+
+Enables the `CodeAgent` for executing Python code:
+
+```python
+from browser_use import CodeAgent
+
+agent = CodeAgent(task="Analyze this data with pandas")
+```
+
+### All Features
+
+Install everything at once:
+
+```bash
+uv add "browser-use[all]"
+# or
+pip install "browser-use[all]"
+```
+
+## Browser Installation
+
+### Automatic Installation
+
+The recommended way is to use the built-in installer:
+
+```bash
+uvx browser-use install
+# or
+python -m browser_use install
+```
+
+This downloads and configures Chromium automatically.
+
+### Using System Chrome/Chromium
+
+You can use your system's Chrome or Chromium installation:
+
+```python
+from browser_use import Browser
+
+browser = Browser(
+    executable_path='/path/to/chrome'
+)
+```
+
+<CodeGroup>
+  ```python macOS
+  executable_path='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+  ```
+  
+  ```python Windows
+  executable_path='C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+  ```
+  
+  ```python Linux
+  executable_path='/usr/bin/google-chrome'
+  # or
+  executable_path='/usr/bin/chromium-browser'
+  ```
+</CodeGroup>
+
+### Docker Installation
+
+For containerized deployments:
+
+```dockerfile
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    wget \
+    gnupg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Browser Use
+RUN pip install browser-use
+
+# Install Chromium
+RUN python -m browser_use install
+
+COPY . /app
+WORKDIR /app
+
+CMD ["python", "main.py"]
+```
+
+<Note>
+  In Docker, Browser Use automatically detects the containerized environment and disables sandboxing (`chromium_sandbox=False`).
+</Note>
+
+## Environment Configuration
+
+### API Keys Setup
+
+Create a `.env` file in your project directory:
+
+```bash
+touch .env
+```
+
+Add your API keys based on the LLM provider you're using:
+
+<CodeGroup>
+  ```bash Browser Use (Recommended)
+  # Get $10 free credits at https://cloud.browser-use.com/new-api-key
+  BROWSER_USE_API_KEY=your-key-here
+  ```
+  
+  ```bash OpenAI
+  OPENAI_API_KEY=sk-...
+  ```
+  
+  ```bash Anthropic Claude
+  ANTHROPIC_API_KEY=sk-ant-...
+  ```
+  
+  ```bash Google Gemini
+  # Get free API key: https://aistudio.google.com/app/apikey
+  GOOGLE_API_KEY=AIza...
+  ```
+  
+  ```bash Multiple Providers
+  # Use multiple providers in the same project
+  BROWSER_USE_API_KEY=your-key
+  OPENAI_API_KEY=sk-...
+  ANTHROPIC_API_KEY=sk-ant-...
+  GOOGLE_API_KEY=AIza...
+  ```
+</CodeGroup>
+
+### Loading Environment Variables
+
+In your Python code:
+
+```python
+from dotenv import load_dotenv
+import os
+
+# Load .env file
+load_dotenv()
+
+# Access variables
+api_key = os.getenv('BROWSER_USE_API_KEY')
+```
+
+### Advanced Environment Variables
+
+Optional configuration:
+
+```bash .env
+# Disable telemetry (we collect anonymous usage data)
+ANONYMIZED_TELEMETRY=false
+
+# Logging level
+BROWSER_USE_LOGGING_LEVEL=debug  # debug, info, warning, error
+
+# Custom log files
+BROWSER_USE_DEBUG_LOG_FILE=./debug.log
+BROWSER_USE_INFO_LOG_FILE=./info.log
+
+# Skip automatic logging setup (for MCP or custom logging)
+BROWSER_USE_SETUP_LOGGING=false
+```
+
+## Verification
+
+Test your installation:
+
+```python verify.py
+from browser_use import Agent, ChatBrowserUse
+import asyncio
+from dotenv import load_dotenv
+
+load_dotenv()
+
+async def verify():
+    print("Testing Browser Use installation...")
+    
+    agent = Agent(
+        task="Go to example.com and tell me the page title",
+        llm=ChatBrowserUse(),
+    )
+    
+    history = await agent.run()
+    print("\n✅ Installation verified!")
+    print(f"Result: {history.final_result()}")
+
+if __name__ == "__main__":
+    asyncio.run(verify())
+```
+
+Run it:
+
+```bash
+python verify.py
+```
+
+You should see a browser window open, navigate to example.com, and print the page title.
+
+## Platform-Specific Notes
+
+### macOS
+
+<Note>
+  On macOS, Browser Use automatically installs `pyobjc` to detect screen resolution for optimal browser sizing.
+</Note>
+
+### Linux
+
+Install system dependencies for GUI:
+
+```bash
+# Ubuntu/Debian
+sudo apt-get update
+sudo apt-get install -y \
+    libnss3 \
+    libatk-bridge2.0-0 \
+    libx11-xcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2
+
+# Fedora/RHEL
+sudo dnf install -y \
+    nss \
+    atk \
+    libX11-xcb \
+    libXcomposite \
+    libXdamage \
+    libXrandr \
+    libgbm \
+    alsa-lib
+```
+
+For headless Linux servers, use `headless=True`:
+
+```python
+browser = Browser(headless=True)
+```
+
+### Windows
+
+<Warning>
+  Windows Defender or antivirus software may flag Chromium downloads. You may need to add an exception for Browser Use.
+</Warning>
+
+If you encounter issues:
+1. Run terminal as Administrator
+2. Disable real-time protection temporarily during installation
+3. Add `C:\Users\YourName\.browser-use` to antivirus exclusions
+
+### WSL (Windows Subsystem for Linux)
+
+For WSL, you'll need an X server:
+
+```bash
+# Install VcXsrv or Xming on Windows
+# Then set DISPLAY environment variable
+export DISPLAY=:0
+
+# Or run headless
+browser = Browser(headless=True)
+```
+
+## Updating Browser Use
+
+We ship updates daily with bug fixes and new features.
+
+### With uv:
+
+```bash
+uv sync
+```
+
+### With pip:
+
+```bash
+pip install --upgrade browser-use
+```
+
+### Check your version:
+
+```python
+import browser_use
+print(browser_use.__version__)
+```
+
+## Uninstalling
+
+### Remove Browser Use:
+
+```bash
+# With uv
+uv remove browser-use
+
+# With pip
+pip uninstall browser-use
+```
+
+### Clean up browser data:
+
+```bash
+# Remove downloaded Chromium and cache
+rm -rf ~/.browser-use
+
+# On Windows
+rmdir /s %USERPROFILE%\.browser-use
+```
+
+## Troubleshooting
+
+### Module not found errors
+
+Ensure your virtual environment is activated:
+
+```bash
+# Should show path to .venv
+which python
+```
+
+### Chromium fails to launch
+
+Try reinstalling Chromium:
+
+```bash
+uvx browser-use install --force
+```
+
+### Permission denied errors
+
+On Linux/macOS, ensure browser binary is executable:
+
+```bash
+chmod +x ~/.browser-use/chromium/*/chrome
+```
+
+### Import takes too long
+
+Browser Use uses lazy imports. Only imported classes are loaded:
+
+```python
+# Fast - only loads Agent
+from browser_use import Agent
+
+# Slower - loads all classes
+from browser_use import *
+```
+
+### SSL/Certificate errors
+
+<Warning>
+  Never disable security in production. Only use for local testing.
+</Warning>
+
+For local development only:
+
+```python
+browser = Browser(disable_security=True)  # NOT for production!
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start Guide" icon="rocket" href="/quickstart">
+    Build your first agent in 5 minutes
+  </Card>
+  <Card title="Browser Configuration" icon="browser" href="/browser/basics">
+    Learn all browser customization options
+  </Card>
+  <Card title="Supported Models" icon="brain" href="/supported-models">
+    Explore all compatible LLM providers
+  </Card>
+  <Card title="Examples" icon="code" href="https://github.com/browser-use/browser-use/tree/main/examples">
+    Browse 100+ real-world examples
+  </Card>
+</CardGroup>
+
+<Note>
+  **Having issues?** Join our [Discord community](https://link.browser-use.com/discord) where 20,000+ developers can help, or check [GitHub Issues](https://github.com/browser-use/browser-use/issues) for known problems.
+</Note>

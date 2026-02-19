@@ -1,122 +1,134 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Browser Use",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#6366F1",
+    "light": "#818CF8",
+    "dark": "#4F46E5"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/browser-use/browser-use"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/browser-use/browser-use",
+      "discord": "https://link.browser-use.com/discord",
+      "twitter": "https://x.com/browser_use"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Getting Started",
             "pages": [
               "index",
               "quickstart",
-              "development"
+              "installation"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/agents",
+              "concepts/browser",
+              "concepts/tools",
+              "concepts/llm-providers"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Guides",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "guides/basic-usage",
+              "guides/custom-tools",
+              "guides/authentication",
+              "guides/data-extraction",
+              "guides/prompting",
+              "guides/production"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Advanced",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "advanced/sandbox",
+              "advanced/cloud-browser",
+              "advanced/actor-api",
+              "advanced/structured-output",
+              "advanced/performance"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Core Classes",
             "pages": [
-              "api-reference/introduction"
+              "api/agent",
+              "api/browser",
+              "api/tools",
+              "api/action-result"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "LLM Providers",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/llm/chat-browser-use",
+              "api/llm/chat-openai",
+              "api/llm/chat-anthropic",
+              "api/llm/chat-google",
+              "api/llm/chat-ollama"
+            ]
+          },
+          {
+            "group": "Actions",
+            "pages": [
+              "api/actions/navigation",
+              "api/actions/interaction",
+              "api/actions/extraction",
+              "api/actions/files"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "api/config/agent-settings",
+              "api/config/browser-settings",
+              "api/config/sandbox-settings"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Examples",
+        "groups": [
+          {
+            "group": "Use Cases",
+            "pages": [
+              "examples/form-filling",
+              "examples/data-scraping",
+              "examples/shopping",
+              "examples/research"
+            ]
+          },
+          {
+            "group": "Integration",
+            "pages": [
+              "examples/playwright",
+              "examples/mcp",
+              "examples/parallel-tasks",
+              "examples/2fa"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

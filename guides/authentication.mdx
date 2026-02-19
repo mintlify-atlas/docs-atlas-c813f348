@@ -1,0 +1,605 @@
+---
+title: 'Authentication'
+description: 'Handle logins, sessions, and 2FA'
+icon: 'key'
+---
+
+## Overview
+
+Browser Use provides multiple strategies for handling authentication:
+
+- **Cookie/Session Sync** - Reuse your local browser sessions
+- **Sensitive Data** - Securely pass credentials to the agent
+- **2FA Integration** - Automate time-based codes
+- **Cloud Profiles** - Persistent authentication in production
+
+## Cookie and Session Management
+
+### Using Your Real Browser
+
+Connect to your existing Chrome profile to preserve all authentication:
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+# macOS
+browser = Browser(
+    executable_path='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    user_data_dir='~/Library/Application Support/Google/Chrome',
+    profile_directory='Default',
+)
+
+# Windows
+# executable_path='C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+# user_data_dir='%LOCALAPPDATA%\\Google\\Chrome\\User Data'
+
+# Linux
+# executable_path='/usr/bin/google-chrome'
+# user_data_dir='~/.config/google-chrome'
+
+agent = Agent(
+    task="Check my GitHub notifications",
+    llm=ChatBrowserUse(),
+    browser=browser,
+)
+
+await agent.run()
+```
+
+<Warning>
+  **Important:** Close Chrome completely before running this. Chrome locks the profile directory.
+</Warning>
+
+### Export/Import Storage State
+
+Save cookies and localStorage for reuse:
+
+<Steps>
+  <Step title="Export Storage State">
+    ```python
+    from browser_use import Browser
+
+    browser = Browser(
+        user_data_dir='~/Library/Application Support/Google/Chrome',
+        profile_directory='Default',
+    )
+
+    await browser.start()
+    await browser.export_storage_state('storage_state.json')
+    await browser.close()
+    ```
+  </Step>
+
+  <Step title="Import Storage State">
+    ```python
+    from browser_use import Agent, Browser, ChatBrowserUse
+
+    browser = Browser(
+        storage_state='storage_state.json'
+    )
+
+    agent = Agent(
+        task="Access authenticated pages",
+        llm=ChatBrowserUse(),
+        browser=browser,
+    )
+
+    await agent.run()
+    ```
+  </Step>
+</Steps>
+
+**Storage State Format:**
+```json
+{
+  "cookies": [
+    {
+      "name": "session_id",
+      "value": "abc123...",
+      "domain": ".example.com",
+      "path": "/",
+      "expires": 1735689600,
+      "httpOnly": true,
+      "secure": true
+    }
+  ],
+  "origins": [
+    {
+      "origin": "https://example.com",
+      "localStorage": [
+        {"name": "auth_token", "value": "xyz789"}
+      ]
+    }
+  ]
+}
+```
+
+## Sensitive Data
+
+Pass credentials securely without hardcoding:
+
+### Basic Usage
+
+```python
+from browser_use import Agent, ChatBrowserUse
+import os
+
+# Load from environment variables
+sensitive_data = {
+    'username': os.getenv('APP_USERNAME'),
+    'password': os.getenv('APP_PASSWORD'),
+}
+
+agent = Agent(
+    task="""
+    1. Go to example.com/login
+    2. Enter username
+    3. Enter password
+    4. Click login button
+    """,
+    llm=ChatBrowserUse(),
+    sensitive_data=sensitive_data,
+)
+
+await agent.run()
+```
+
+<Tip>
+  The agent automatically detects when to use sensitive data values. They're **never logged** or shown in console output.
+</Tip>
+
+### Domain-Specific Credentials
+
+Organize credentials by domain:
+
+```python
+sensitive_data = {
+    'github.com': {
+        'username': 'myuser',
+        'password': 'mypass123',
+        'api_token': 'ghp_abc123...',
+    },
+    'google.com': {
+        'email': 'user@gmail.com',
+        'password': 'different_pass',
+    },
+}
+
+agent = Agent(
+    task="Login to GitHub and Google",
+    llm=ChatBrowserUse(),
+    sensitive_data=sensitive_data,
+)
+```
+
+## 2FA Authentication
+
+### Time-Based OTP (TOTP)
+
+Automate 2FA codes with `pyotp`:
+
+```python
+import os
+import pyotp
+from browser_use import Agent, ChatBrowserUse
+
+# Get your TOTP secret when setting up 2FA
+# Most authenticator apps show a secret key you can copy
+secret_key = os.getenv('OTP_SECRET_KEY')  # e.g., 'JBSWY3DPEHPK3PXP'
+
+sensitive_data = {
+    'username': 'myuser',
+    'password': 'mypass',
+    'bu_2fa_code': secret_key,  # Special key name for automatic TOTP
+}
+
+agent = Agent(
+    task="""
+    1. Go to https://example.com/login
+    2. Enter username and password
+    3. When prompted for 2FA code, input bu_2fa_code
+    """,
+    llm=ChatBrowserUse(),
+    sensitive_data=sensitive_data,
+)
+
+await agent.run()
+```
+
+<Tip>
+  Browser Use automatically generates TOTP codes when it sees `bu_2fa_code` in sensitive data.
+</Tip>
+
+### Custom 2FA Tool
+
+For more control, create a custom tool:
+
+```python
+import pyotp
+from browser_use import Tools, ActionResult, Agent, ChatBrowserUse
+
+tools = Tools()
+
+secret_key = "JBSWY3DPEHPK3PXP"
+
+@tools.action('Generate 2FA authentication code')
+async def get_2fa_code() -> ActionResult:
+    totp = pyotp.TOTP(secret_key)
+    code = totp.now()
+    
+    return ActionResult(
+        extracted_content=f"2FA code: {code}"
+    )
+
+agent = Agent(
+    task="""
+    1. Login with username/password
+    2. When 2FA prompt appears, use get_2fa_code action
+    3. NEVER try to read 2FA codes from the page
+    4. ALWAYS use the get_2fa_code action
+    """,
+    llm=ChatBrowserUse(),
+    tools=tools,
+)
+```
+
+### SMS/Email 2FA
+
+Implement human-in-the-loop for manual codes:
+
+```python
+from browser_use import Tools, ActionResult
+
+tools = Tools()
+
+@tools.action('Get 2FA code from user')
+async def get_2fa_from_user() -> ActionResult:
+    print("\n⚠️  Check your phone/email for 2FA code")
+    code = input("Enter 2FA code: ").strip()
+    
+    return ActionResult(
+        extracted_content=f"2FA code: {code}"
+    )
+
+agent = Agent(
+    task="Login and use get_2fa_from_user when prompted for 2FA",
+    llm=ChatBrowserUse(),
+    tools=tools,
+)
+```
+
+## Production: Cloud Profiles
+
+For production deployments, sync your local cookies to the cloud:
+
+<Steps>
+  <Step title="Get API Key">
+    Create an API key at [cloud.browser-use.com/new-api-key](https://cloud.browser-use.com/new-api-key)
+
+    ```bash
+    export BROWSER_USE_API_KEY=your_key_here
+    ```
+  </Step>
+
+  <Step title="Sync Local Cookies">
+    Run the profile sync script:
+
+    ```bash
+    curl -fsSL https://browser-use.com/profile.sh | sh
+    ```
+
+    This opens a browser where you log into your accounts. You'll get a `profile_id`.
+  </Step>
+
+  <Step title="Use in Production">
+    ```python
+    from browser_use import Browser, sandbox, ChatBrowserUse
+    from browser_use.agent.service import Agent
+    import asyncio
+
+    @sandbox(cloud_profile_id='your-profile-id')
+    async def authenticated_task(browser: Browser):
+        agent = Agent(
+            task="Check my account dashboard",
+            browser=browser,
+            llm=ChatBrowserUse(),
+        )
+        await agent.run()
+
+    asyncio.run(authenticated_task())
+    ```
+
+    Your cloud browser is **already logged in** with your synced cookies!
+  </Step>
+</Steps>
+
+<Tip>
+  Cloud profiles persist authentication across runs. No need to login every time.
+</Tip>
+
+## Common Authentication Patterns
+
+### Form-Based Login
+
+```python
+agent = Agent(
+    task="""
+    1. Navigate to https://example.com/login
+    2. Find the username/email field and enter username
+    3. Find the password field and enter password
+    4. Find and click the submit/login button
+    5. Wait for redirect to dashboard
+    """,
+    llm=ChatBrowserUse(),
+    sensitive_data={
+        'username': 'myuser',
+        'password': 'mypass',
+    },
+)
+```
+
+### OAuth Flow
+
+```python
+agent = Agent(
+    task="""
+    1. Go to myapp.com
+    2. Click 'Login with GitHub'
+    3. On GitHub authorization page, click 'Authorize'
+    4. Wait for redirect back to myapp.com
+    """,
+    llm=ChatBrowserUse(),
+    browser=Browser(
+        storage_state='github_cookies.json'  # Pre-authenticated GitHub session
+    ),
+)
+```
+
+### Multi-Step Authentication
+
+```python
+from browser_use import Tools, ActionResult, Agent, ChatBrowserUse
+
+tools = Tools()
+
+@tools.action('Get security question answer')
+async def get_security_answer(question: str) -> ActionResult:
+    # Look up answer in secure storage
+    answers = {
+        "What is your mother's maiden name?": "Smith",
+        "What city were you born in?": "Boston",
+    }
+    
+    answer = answers.get(question)
+    if answer:
+        return ActionResult(extracted_content=f"Answer: {answer}")
+    else:
+        # Fallback to human
+        print(f"\nSecurity question: {question}")
+        user_answer = input("Answer: ").strip()
+        return ActionResult(extracted_content=f"Answer: {user_answer}")
+
+agent = Agent(
+    task="""
+    1. Login with username/password
+    2. If security question appears, use get_security_answer
+    3. If 2FA required, use get_2fa_code
+    4. Complete login
+    """,
+    llm=ChatBrowserUse(),
+    tools=tools,
+    sensitive_data={'username': 'user', 'password': 'pass'},
+)
+```
+
+### SSO / SAML
+
+```python
+agent = Agent(
+    task="""
+    1. Go to myapp.com
+    2. Click 'Login with SSO'
+    3. Enter company email when prompted
+    4. On company login page, enter username and password
+    5. If MFA required, use get_2fa_code
+    6. Wait for redirect to myapp.com dashboard
+    """,
+    llm=ChatBrowserUse(),
+    sensitive_data={
+        'company_email': 'user@company.com',
+        'username': 'user',
+        'password': 'pass',
+    },
+    tools=tools,
+)
+```
+
+## Session Persistence
+
+### Keep Browser Alive
+
+Maintain session across multiple agent runs:
+
+```python
+from browser_use import Browser, Agent, ChatBrowserUse
+
+browser = Browser(keep_alive=True)
+
+# First task - login
+agent1 = Agent(
+    task="Login to example.com",
+    llm=ChatBrowserUse(),
+    browser=browser,
+    sensitive_data={'username': 'user', 'password': 'pass'},
+)
+await agent1.run()
+
+# Second task - already logged in
+agent2 = Agent(
+    task="Go to dashboard and extract data",
+    llm=ChatBrowserUse(),
+    browser=browser,  # Reuse same browser instance
+)
+await agent2.run()
+
+# Clean up when done
+await browser.close()
+```
+
+### Export State Mid-Session
+
+```python
+browser = Browser()
+
+agent = Agent(
+    task="Login to all my accounts",
+    llm=ChatBrowserUse(),
+    browser=browser,
+)
+
+await agent.run()
+
+# Save authenticated state
+await browser.export_storage_state('all_accounts.json')
+await browser.close()
+
+# Later, restore state
+browser2 = Browser(storage_state='all_accounts.json')
+agent2 = Agent(
+    task="Check all account dashboards",
+    llm=ChatBrowserUse(),
+    browser=browser2,
+)
+await agent2.run()
+```
+
+## Security Best Practices
+
+<Steps>
+  <Step title="Never Hardcode Credentials">
+    ✅ **Good:**
+    ```python
+    import os
+    sensitive_data = {
+        'password': os.getenv('APP_PASSWORD'),
+    }
+    ```
+
+    ❌ **Bad:**
+    ```python
+    sensitive_data = {
+        'password': 'mypassword123',
+    }
+    ```
+  </Step>
+
+  <Step title="Use .gitignore">
+    Exclude sensitive files:
+    ```bash .gitignore
+    .env
+    storage_state.json
+    cookies.json
+    *.pem
+    ```
+  </Step>
+
+  <Step title="Rotate Credentials">
+    ```python
+    # Set expiration for sensitive data
+    from datetime import datetime, timedelta
+
+    credentials_expiry = datetime.now() + timedelta(days=30)
+
+    if datetime.now() > credentials_expiry:
+        # Force re-authentication
+        storage_state = None
+    ```
+  </Step>
+
+  <Step title="Monitor Authentication">
+    ```python
+    from browser_use import Agent, ChatBrowserUse
+
+    agent = Agent(
+        task="Login and verify dashboard access",
+        llm=ChatBrowserUse(),
+        sensitive_data=sensitive_data,
+    )
+
+    result = await agent.run()
+
+    if result.has_errors():
+        print("Authentication failed:", result.errors())
+        # Alert security team
+    ```
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### Session Expired
+
+```python
+agent = Agent(
+    task="""
+    1. Try to access dashboard
+    2. If redirected to login page, authenticate again
+    3. Then retry accessing dashboard
+    """,
+    llm=ChatBrowserUse(),
+    sensitive_data=sensitive_data,
+)
+```
+
+### CAPTCHA Handling
+
+Use cloud browsers with captcha bypass:
+
+```python
+from browser_use import Browser
+
+browser = Browser(
+    cloud_proxy_country_code='us',  # Enables captcha bypass
+)
+
+agent = Agent(
+    task="Login to protected site",
+    llm=ChatBrowserUse(),
+    browser=browser,
+)
+```
+
+### Cookie Domain Mismatch
+
+```python
+# Ensure cookies match the domain you're visiting
+storage_state = {
+    "cookies": [
+        {
+            "name": "session",
+            "value": "abc123",
+            "domain": ".example.com",  # Works for example.com and *.example.com
+            "path": "/",
+        }
+    ]
+}
+
+browser = Browser(storage_state=storage_state)
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Production Deployment" icon="rocket" href="/guides/production">
+    Deploy with @sandbox and cloud profiles
+  </Card>
+  <Card title="Custom Tools" icon="wrench" href="/guides/custom-tools">
+    Build custom authentication flows
+  </Card>
+  <Card title="Browser Configuration" icon="browser" href="/customize/browser/all-parameters">
+    Advanced browser settings
+  </Card>
+  <Card title="Sensitive Data" icon="shield" href="https://github.com/browser-use/browser-use/blob/main/examples/features/sensitive_data.py">
+    See more examples
+  </Card>
+</CardGroup>

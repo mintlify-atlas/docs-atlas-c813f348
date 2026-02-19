@@ -1,97 +1,218 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: Introduction
+description: Meet Browser Use - The AI-powered browser automation library that lets you control web browsers with natural language
 ---
 
-## Setting up
+## What is Browser Use?
 
-Get your documentation site up and running in minutes.
+Browser Use is a powerful Python library that enables AI agents to autonomously interact with web browsers. By combining Large Language Models (LLMs) with browser automation, Browser Use allows you to describe tasks in natural language and have them executed automatically.
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
+<Card title="Example Task" icon="robot">
+  "Go to HackerNews, find the top 5 Show HN posts, and extract their titles, URLs, and comment counts"
 </Card>
 
-## Make it yours
+Instead of writing complex Selenium or Playwright scripts, you simply tell Browser Use what you want to accomplish, and it figures out how to do it.
 
-Design a docs site that looks great and empowers your users.
+## Key Features
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Natural Language Control" icon="message-bot">
+    Describe tasks in plain English - no need to write explicit automation scripts
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Multiple LLM Support" icon="brain">
+    Works with ChatBrowserUse, OpenAI, Google Gemini, Anthropic Claude, Ollama, and more
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Smart Interactions" icon="wand-magic-sparkles">
+    Handles forms, navigation, data extraction, file uploads, and complex workflows automatically
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Custom Tools" icon="toolbox">
+    Extend agent capabilities with custom Python functions for APIs, 2FA, file operations, and more
   </Card>
-</Columns>
+  <Card title="Production Ready" icon="cloud">
+    Deploy to production with Browser Use Cloud sandboxes - handles browsers, authentication, and scaling
+  </Card>
+  <Card title="Visual Understanding" icon="eye">
+    Uses vision models to understand page layouts and identify interactive elements
+  </Card>
+</CardGroup>
 
-## Create beautiful pages
+## How It Works
 
-Everything you need to create world-class documentation.
+<Steps>
+  <Step title="You Provide a Task">
+    Describe what you want to accomplish in natural language:
+    ```python
+    task = "Find the top 3 posts on HackerNews Show HN"
+    ```
+  </Step>
+  
+  <Step title="Agent Analyzes the Page">
+    The agent loads the webpage, analyzes the DOM structure, and identifies interactive elements using computer vision
+  </Step>
+  
+  <Step title="LLM Decides Actions">
+    The language model determines what actions to take: clicking, typing, scrolling, extracting data, etc.
+  </Step>
+  
+  <Step title="Actions Are Executed">
+    Browser Use executes the actions through CDP (Chrome DevTools Protocol) and evaluates the results
+  </Step>
+  
+  <Step title="Process Repeats">
+    The agent continues this loop until the task is complete or encounters an error
+  </Step>
+</Steps>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+## Simple Example
 
-## Need inspiration?
+Here's a complete working example:
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+```python
+from browser_use import Agent, ChatBrowserUse
+import asyncio
+from dotenv import load_dotenv
+
+load_dotenv()
+
+async def main():
+    agent = Agent(
+        task="Search Google for 'Python automation' and tell me the top 3 results",
+        llm=ChatBrowserUse(),
+    )
+    history = await agent.run()
+    print(history.final_result())
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+<Note>
+  The agent automatically handles browser setup, navigation, searching, and extracting results - all from a single task description!
+</Note>
+
+## Common Use Cases
+
+### Data Extraction & Web Scraping
+Extract structured data from websites without writing CSS selectors or XPath expressions:
+
+```python
+task = """
+Go to https://quotes.toscrape.com/ and extract the first 5 quotes
+with their authors and tags in a structured format
+"""
+```
+
+### Form Automation
+Fill out and submit forms automatically:
+
+```python
+task = """
+Go to the contact form and fill it with:
+- Name: John Doe
+- Email: john@example.com
+- Message: This is an automated test
+Then submit the form
+"""
+```
+
+### Authenticated Workflows
+Handle logins and authenticated sessions:
+
+```python
+task = """
+1. Log in to the dashboard
+2. Navigate to the reports section
+3. Download the latest monthly report
+"""
+```
+
+### Research & Monitoring
+Gather information from multiple sources:
+
+```python
+task = """
+Find the latest news about browser automation tools,
+compare their GitHub stars, and summarize the top 3
+"""
+```
+
+## Why Browser Use?
+
+<CardGroup cols={2}>
+  <Card title="Developer Friendly" icon="code">
+    Simple Python API, extensive documentation, and rich examples
+  </Card>
+  <Card title="Flexible Architecture" icon="puzzle-piece">
+    Customize browser settings, add custom tools, and control every aspect of automation
+  </Card>
+  <Card title="Open Source" icon="code-branch">
+    MIT licensed with an active community on GitHub and Discord
+  </Card>
+  <Card title="Production Scale" icon="rocket">
+    Built-in cloud deployment with Browser Use Cloud for enterprise workloads
+  </Card>
+</CardGroup>
+
+## Architecture Overview
+
+Browser Use consists of three main components:
+
+1. **Agent** - The orchestrator that manages task execution and decision-making
+2. **Browser** - The automation layer that controls Chromium via CDP
+3. **Tools** - Built-in and custom actions the agent can perform
+
+```python
+from browser_use import Agent, Browser, Tools
+
+# Configure browser
+browser = Browser(
+    headless=False,
+    window_size={'width': 1280, 'height': 720}
+)
+
+# Add custom tools
+tools = Tools()
+
+@tools.action('Get current timestamp')
+def get_timestamp() -> str:
+    from datetime import datetime
+    return datetime.now().isoformat()
+
+# Create agent with custom configuration
+agent = Agent(
+    task="Your task here",
+    llm=ChatBrowserUse(),
+    browser=browser,
+    tools=tools
+)
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get up and running in 5 minutes
+  </Card>
+  <Card title="Installation Guide" icon="download" href="/installation">
+    Detailed installation and setup instructions
+  </Card>
+  <Card title="Examples" icon="book-open" href="https://github.com/browser-use/browser-use/tree/main/examples">
+    Browse 100+ real-world examples
+  </Card>
+  <Card title="Join Discord" icon="discord" href="https://link.browser-use.com/discord">
+    Get help from 20k+ developers
+  </Card>
+</CardGroup>
+
+## Community & Support
+
+Browser Use has a thriving community:
+
+- **20,000+** developers in our Discord
+- **1,000+** examples and use cases
+- **Active development** - we ship updates daily
+- **Enterprise support** available at [support@browser-use.com](mailto:support@browser-use.com)
+
+<Note>
+  **Ready to automate?** Continue to the [Quick Start](/quickstart) guide to build your first agent in under 5 minutes.
+</Note>

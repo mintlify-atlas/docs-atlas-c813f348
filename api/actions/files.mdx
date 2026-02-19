@@ -1,0 +1,257 @@
+---
+title: "File Actions"
+description: "Actions for reading, writing, and uploading files"
+icon: "file"
+mode: "wide"
+---
+
+File actions enable the agent to work with files both in the local filesystem and in web forms.
+
+## write_file
+
+Write content to a file.
+
+<ParamField path="file_name" type="string" required>
+  Name of the file to write. 
+  
+  **Filename rules:**
+  - Use only letters, numbers, underscores, hyphens, dots, parentheses
+  - Spaces are auto-converted to hyphens
+  
+  **Supported extensions:** `.txt`, `.md`, `.json`, `.jsonl`, `.csv`, `.html`, `.xml`, `.pdf`, `.docx`
+</ParamField>
+
+<ParamField path="content" type="string" required>
+  The content to write to the file
+</ParamField>
+
+<ParamField path="append" type="bool" default="False">
+  Whether to append to an existing file. 
+  - `False` = overwrite entire file (default)
+  - `True` = add to end of existing file
+</ParamField>
+
+<ParamField path="trailing_newline" type="bool" default="True">
+  Add a newline at the end of the content
+</ParamField>
+
+<ParamField path="leading_newline" type="bool" default="False">
+  Add a newline at the beginning of the content
+</ParamField>
+
+### Example
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+agent = Agent(
+    task="Extract the top 5 posts from Hacker News and save to hn_posts.csv",
+    llm=ChatBrowserUse(),
+    browser=Browser()
+)
+
+await agent.run()
+```
+
+<Warning>
+  **By default, this OVERWRITES the entire file.** Use `append=True` to add to an existing file, or use `replace_file` for targeted edits.
+</Warning>
+
+<Note>
+  **PDF files:** Write content in markdown format and it will be auto-converted to PDF.
+  
+  **Cannot write binary files:** Do not attempt to save screenshots or images (.png, .jpg, .mp4) - these are handled separately.
+</Note>
+
+**Implementation:** `browser_use.tools.service:1504`
+
+---
+
+## read_file
+
+Read the complete content of a file.
+
+<ParamField path="file_name" type="string" required>
+  Name of the file to read
+  
+  **Supported formats:**
+  - Text files: `.txt`, `.md`, `.json`, `.csv`, `.jsonl`
+  - Documents: `.pdf`, `.docx`
+  - Images: `.jpg`, `.png`
+</ParamField>
+
+### Example
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+agent = Agent(
+    task="Read data.json and summarize the contents",
+    llm=ChatBrowserUse(),
+    browser=Browser(),
+    available_file_paths=["./data.json"]
+)
+
+await agent.run()
+```
+
+<Note>
+  Files must be:
+  1. Previously written by the agent, OR
+  2. Listed in `available_file_paths` parameter when creating the Agent
+  
+  See [Agent All Parameters](/customize/agent/all-parameters) for file configuration.
+</Note>
+
+**Implementation:** `browser_use.tools.service:1539`
+
+---
+
+## replace_file
+
+Replace specific text within a file without rewriting the entire file.
+
+<ParamField path="file_name" type="string" required>
+  Name of the file to edit
+</ParamField>
+
+<ParamField path="old_str" type="string" required>
+  Text to search for and replace
+</ParamField>
+
+<ParamField path="new_str" type="string" required>
+  Replacement text
+</ParamField>
+
+### Example
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+agent = Agent(
+    task="Update the todo.md file and mark 'Research AI' as completed",
+    llm=ChatBrowserUse(),
+    browser=Browser()
+)
+
+await agent.run()
+```
+
+<Tip>
+  Use `replace_file` for:
+  - Updating todo checkboxes
+  - Modifying specific lines
+  - Targeted edits without rewriting entire files
+</Tip>
+
+**Implementation:** `browser_use.tools.service:1531`
+
+---
+
+## upload_file
+
+Upload a file to a web form's file input element.
+
+<ParamField path="index" type="int" required>
+  Element index from `browser_state` pointing to a file input or nearby element
+</ParamField>
+
+<ParamField path="path" type="string" required>
+  File path to upload. Must be either:
+  - Previously downloaded by the browser
+  - Listed in `available_file_paths` parameter
+  - In the FileSystem directory (for remote browsers)
+</ParamField>
+
+### Example
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+agent = Agent(
+    task="Go to example.com/upload and upload document.pdf",
+    llm=ChatBrowserUse(),
+    browser=Browser(),
+    available_file_paths=["./document.pdf"]
+)
+
+await agent.run()
+```
+
+<Note>
+  The agent automatically:
+  - Finds nearby file input elements if the clicked element isn't one
+  - Validates file existence and size (for local browsers)
+  - Searches for the closest file input if none found near the clicked element
+</Note>
+
+<Warning>
+  For security, files must be explicitly allowed via `available_file_paths` when creating the Agent.
+  
+  ```python
+  agent = Agent(
+      task="...",
+      llm=llm,
+      browser=browser,
+      available_file_paths=["./file1.pdf", "./file2.jpg"]
+  )
+  ```
+</Warning>
+
+**Implementation:** `browser_use.tools.service:725`
+
+---
+
+## read_long_content
+
+Intelligently read long content to find specific information using search and LLM extraction.
+
+<ParamField path="goal" type="string" required>
+  What to look for or extract from the content
+</ParamField>
+
+<ParamField path="source" type="string" default="page">
+  What to read:
+  - `"page"` - Current webpage
+  - File path - Path to a file
+</ParamField>
+
+<ParamField path="context" type="string" default="">
+  Additional context about the task to help with search term extraction
+</ParamField>
+
+### Example
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+agent = Agent(
+    task="Go to the Python documentation and find information about async/await",
+    llm=ChatBrowserUse(),
+    browser=Browser()
+)
+
+await agent.run()
+```
+
+<Note>
+  **How it works:**
+  1. Extracts search terms from the goal using LLM
+  2. Searches content for relevant sections
+  3. Returns the most relevant chunks within token limits
+  4. For PDFs, scores pages by relevance and includes page 1 + top matches
+  
+  **Best for:**
+  - Long articles or documentation
+  - PDFs with many pages
+  - Any content where you know what you're looking for
+</Note>
+
+**Implementation:** `browser_use.tools.service:1580`
+
+---
+
+## Related Actions
+
+- [Interaction Actions](/api/actions/interaction) - Upload files to forms
+- [Extraction Actions](/api/actions/extraction) - Extract data to save in files

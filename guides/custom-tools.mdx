@@ -1,0 +1,451 @@
+---
+title: 'Custom Tools'
+description: 'Extend agent capabilities with custom functions'
+icon: 'wrench'
+---
+
+## Overview
+
+Tools are functions that expand what your agent can do beyond basic browser actions. Add custom tools to:
+
+- Call external APIs
+- Access databases
+- Implement human-in-the-loop workflows
+- Handle 2FA codes
+- Execute custom JavaScript
+- Integrate with Playwright or Selenium
+- Send emails or notifications
+
+<Tip>
+  Tools are called automatically by the LLM when it determines they're needed for the task.
+</Tip>
+
+## Creating Your First Tool
+
+<Steps>
+  <Step title="Initialize Tools">
+    ```python
+    from browser_use import Tools, ActionResult
+
+    tools = Tools()
+    ```
+  </Step>
+
+  <Step title="Add a Simple Tool">
+    Use the `@tools.action()` decorator:
+
+    ```python
+    @tools.action('Ask human for help with a question')
+    async def ask_human(question: str) -> ActionResult:
+        answer = input(f'{question} > ')
+        return ActionResult(
+            extracted_content=f'The human responded with: {answer}'
+        )
+    ```
+
+    <Warning>
+      The `description` parameter is **required** - the LLM uses it to decide when to call your tool.
+    </Warning>
+  </Step>
+
+  <Step title="Pass Tools to Agent">
+    ```python
+    from browser_use import Agent, ChatBrowserUse
+
+    agent = Agent(
+        task='Ask the user what their favorite color is',
+        llm=ChatBrowserUse(),
+        tools=tools,
+    )
+
+    await agent.run()
+    ```
+  </Step>
+</Steps>
+
+## Tool Response Types
+
+### Simple String Return
+
+```python
+@tools.action('Get current timestamp')
+async def get_timestamp() -> str:
+    from datetime import datetime
+    return datetime.now().isoformat()
+```
+
+### ActionResult (Advanced)
+
+```python
+from browser_use import ActionResult
+
+@tools.action('Validate email address')
+async def validate_email(email: str) -> ActionResult:
+    is_valid = '@' in email and '.' in email.split('@')[1]
+    
+    if is_valid:
+        return ActionResult(
+            extracted_content=f"Email {email} is valid",
+            success=True,
+        )
+    else:
+        return ActionResult(
+            error=f"Email {email} is invalid",
+            success=False,
+        )
+```
+
+**ActionResult Fields:**
+- `extracted_content`: Main result shown to agent
+- `long_term_memory`: Info to remember across steps
+- `error`: Error message
+- `is_done`: Mark task as complete
+- `success`: Whether action succeeded
+- `attachments`: List of file paths
+
+## Accessing Browser State
+
+<Warning>
+  **Critical:** Use parameter name `browser_session` with type `BrowserSession` (NOT `browser: Browser`). The agent injects parameters by **name matching**.
+</Warning>
+
+```python
+from browser_use import Tools, ActionResult, BrowserSession
+
+tools = Tools()
+
+@tools.action('Get current page title')
+async def get_page_title(browser_session: BrowserSession) -> ActionResult:
+    # Access current page via CDP
+    cdp_session = await browser_session.get_or_create_cdp_session()
+    result = await cdp_session.cdp_client.send.Runtime.evaluate(
+        params={'expression': 'document.title', 'returnByValue': True},
+        session_id=cdp_session.session_id
+    )
+    title = result.get('result', {}).get('value', '')
+    
+    return ActionResult(
+        extracted_content=f'Page title: {title}'
+    )
+```
+
+## Real-World Examples
+
+### Human-in-the-Loop Approval
+
+```python
+@tools.action('Get approval from human before proceeding')
+async def get_approval(action_description: str) -> ActionResult:
+    print(f"\n⚠️  Agent wants to: {action_description}")
+    response = input("Approve? (yes/no) > ").strip().lower()
+    
+    if response == 'yes':
+        return ActionResult(extracted_content="Approved by human")
+    else:
+        return ActionResult(
+            error="Action rejected by human",
+            is_done=True  # Stop agent execution
+        )
+
+agent = Agent(
+    task="Research competitor pricing and update our database",
+    llm=ChatBrowserUse(),
+    tools=tools,
+)
+```
+
+### 2FA Code Generation
+
+```python
+import pyotp
+
+secret_key = "JBSWY3DPEHPK3PXP"  # Your TOTP secret
+
+@tools.action('Generate 2FA authentication code')
+async def generate_2fa_code() -> ActionResult:
+    totp = pyotp.TOTP(secret_key)
+    code = totp.now()
+    
+    return ActionResult(
+        extracted_content=f"2FA code: {code}"
+    )
+
+# Use with sensitive data
+agent = Agent(
+    task="""
+    1. Go to example.com/login
+    2. Enter username and password
+    3. When prompted for 2FA, use generate_2fa_code action
+    """,
+    llm=ChatBrowserUse(),
+    tools=tools,
+    sensitive_data={'username': 'myuser', 'password': 'mypass'},
+)
+```
+
+<Tip>
+  See the [Authentication guide](/guides/authentication) for more 2FA patterns.
+</Tip>
+
+### API Integration
+
+```python
+import httpx
+
+@tools.action('Search internal database for customer info')
+async def search_customer(email: str) -> ActionResult:
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"https://api.yourcompany.com/customers",
+            params={'email': email},
+            headers={'Authorization': 'Bearer YOUR_TOKEN'}
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            return ActionResult(
+                extracted_content=f"Customer found: {data}"
+            )
+        else:
+            return ActionResult(
+                error=f"Customer not found: {email}"
+            )
+```
+
+### Custom JavaScript Execution
+
+```python
+@tools.action('Execute custom JavaScript on the page')
+async def execute_js(javascript_code: str, browser_session: BrowserSession) -> ActionResult:
+    cdp_session = await browser_session.get_or_create_cdp_session()
+    
+    result = await cdp_session.cdp_client.send.Runtime.evaluate(
+        params={
+            'expression': javascript_code,
+            'returnByValue': True,
+            'awaitPromise': True
+        },
+        session_id=cdp_session.session_id
+    )
+    
+    if result.get('exceptionDetails'):
+        error = result['exceptionDetails'].get('text', 'Unknown error')
+        return ActionResult(error=f"JavaScript error: {error}")
+    
+    value = result.get('result', {}).get('value')
+    return ActionResult(extracted_content=f"Result: {value}")
+```
+
+### Database Operations
+
+```python
+import asyncpg
+
+@tools.action('Save extracted data to database')
+async def save_to_database(table: str, data: dict) -> ActionResult:
+    conn = await asyncpg.connect(
+        user='user', password='password',
+        database='mydb', host='localhost'
+    )
+    
+    try:
+        columns = ', '.join(data.keys())
+        values = ', '.join([f"${i+1}" for i in range(len(data))])
+        query = f"INSERT INTO {table} ({columns}) VALUES ({values})"
+        
+        await conn.execute(query, *data.values())
+        return ActionResult(
+            extracted_content=f"Saved {len(data)} fields to {table}"
+        )
+    
+    finally:
+        await conn.close()
+```
+
+## Domain Filtering
+
+Restrict tools to specific domains for safety:
+
+```python
+@tools.action(
+    'Trigger disco mode animation',
+    allowed_domains=['google.com', '*.google.com']
+)
+async def disco_mode(browser_session: BrowserSession) -> ActionResult:
+    cdp_session = await browser_session.get_or_create_cdp_session()
+    
+    await cdp_session.cdp_client.send.Runtime.evaluate(
+        params={
+            'expression': """
+            (() => {
+                document.styleSheets[0].insertRule(
+                    '@keyframes wiggle { 0% { transform: rotate(0deg); } '
+                    '50% { transform: rotate(10deg); } '
+                    '100% { transform: rotate(0deg); } }'
+                );
+                document.querySelectorAll("*").forEach(el => {
+                    el.style.animation = "wiggle 0.5s infinite";
+                });
+            })()
+            """
+        },
+        session_id=cdp_session.session_id
+    )
+    
+    return ActionResult(extracted_content="Disco mode activated!")
+```
+
+**Domain Pattern Formats:**
+- `'example.com'` - Only `https://example.com/*`
+- `'*.example.com'` - All subdomains
+- `'http*://example.com'` - Both HTTP and HTTPS
+- `'chrome-extension://*'` - Chrome extensions
+
+<Warning>
+  Wildcards in TLDs (e.g., `example.*`) are **not allowed** for security.
+</Warning>
+
+## Removing Default Tools
+
+Exclude built-in tools you don't need:
+
+```python
+tools = Tools(exclude_actions=['search', 'wait', 'screenshot'])
+
+agent = Agent(
+    task="Your task",
+    llm=ChatBrowserUse(),
+    tools=tools,
+)
+```
+
+See [Available Tools](/customize/tools/available) for the full list.
+
+## Tool Parameter Types
+
+The agent automatically fills parameters based on type hints:
+
+```python
+from typing import Optional, List
+from pydantic import BaseModel
+
+class Product(BaseModel):
+    name: str
+    price: float
+    in_stock: bool
+
+@tools.action('Add products to cart')
+async def add_to_cart(
+    products: List[Product],
+    coupon_code: Optional[str] = None,
+    browser_session: BrowserSession = None
+) -> ActionResult:
+    # products: list of Product objects
+    # coupon_code: optional string
+    # browser_session: injected by agent
+    
+    total = sum(p.price for p in products)
+    return ActionResult(
+        extracted_content=f"Added {len(products)} products, total: ${total}"
+    )
+```
+
+<Tip>
+  Use Pydantic models for complex structured inputs. The LLM will generate valid instances.
+</Tip>
+
+## Advanced: Actor Integration
+
+Use the [Actor](/customize/actor/basics) for deterministic browser control:
+
+```python
+from browser_use import Tools, ActionResult, BrowserSession
+from browser_use.actor import Actor
+
+tools = Tools()
+
+@tools.action('Click element by CSS selector')
+async def click_by_selector(selector: str, browser_session: BrowserSession) -> ActionResult:
+    actor = Actor(browser_session)
+    
+    # Find element
+    elements = await actor.find_elements(selector=selector)
+    
+    if not elements:
+        return ActionResult(error=f"No element found with selector: {selector}")
+    
+    # Click first match
+    await actor.click_element(element=elements[0])
+    
+    return ActionResult(
+        extracted_content=f"Clicked element: {selector}"
+    )
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Clear Descriptions">
+    Write descriptions that tell the LLM **when** and **why** to use the tool:
+
+    ✅ **Good:**
+    ```python
+    @tools.action('Get approval from human before making purchases or database changes')
+    ```
+
+    ❌ **Bad:**
+    ```python
+    @tools.action('Get approval')
+    ```
+  </Step>
+
+  <Step title="Return Useful Content">
+    Give the agent context about what happened:
+
+    ```python
+    return ActionResult(
+        extracted_content="Email sent to john@example.com. Message ID: 12345"
+    )
+    ```
+  </Step>
+
+  <Step title="Handle Errors Gracefully">
+    ```python
+    try:
+        # Your logic
+        return ActionResult(extracted_content="Success")
+    except Exception as e:
+        return ActionResult(error=f"Failed: {str(e)}")
+    ```
+  </Step>
+
+  <Step title="Use Type Hints">
+    Help the LLM understand parameter types:
+
+    ```python
+    async def my_tool(
+        email: str,
+        age: int,
+        subscribe: bool = False
+    ) -> ActionResult:
+        ...
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Available Tools" icon="list" href="/customize/tools/available">
+    See all built-in browser actions
+  </Card>
+  <Card title="Actor Reference" icon="robot" href="/customize/actor/basics">
+    Direct browser control methods
+  </Card>
+  <Card title="Data Extraction" icon="database" href="/guides/data-extraction">
+    Extract structured data from pages
+  </Card>
+  <Card title="Production" icon="rocket" href="/guides/production">
+    Deploy with @sandbox decorator
+  </Card>
+</CardGroup>

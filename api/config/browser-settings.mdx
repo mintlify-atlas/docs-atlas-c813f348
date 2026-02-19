@@ -1,0 +1,464 @@
+---
+title: "Browser Settings"
+description: "Configuration options for controlling browser behavior and appearance"
+icon: "browser"
+mode: "wide"
+---
+
+The `Browser` class (alias for `BrowserSession`) configures how the browser launches and operates.
+
+<Note>
+  The `Browser` instance also provides all [Actor](/customize/actor/all-parameters) methods for direct browser control.
+</Note>
+
+## Core Settings
+
+### cdp_url
+
+<ParamField path="cdp_url" type="string">
+  Chrome DevTools Protocol URL for connecting to an existing browser instance.
+  
+  **Example:** `"http://localhost:9222"`
+  
+  Use this to connect to remote browsers or existing browser sessions.
+</ParamField>
+
+---
+
+## Display & Appearance
+
+### headless
+
+<ParamField path="headless" type="bool | None" default="None">
+  Run browser without visible UI.
+  
+  - `True` - Headless mode (no window)
+  - `False` - Headed mode (show browser window)
+  - `None` - Auto-detect based on display availability
+</ParamField>
+
+### window_size
+
+<ParamField path="window_size" type="dict | ViewportSize">
+  Browser window size for headed mode.
+  
+  **Example:** `{'width': 1920, 'height': 1080}`
+</ParamField>
+
+### window_position
+
+<ParamField path="window_position" type="dict" default="{'width': 0, 'height': 0}">
+  Window position from top-left corner in pixels.
+  
+  **Example:** `{'width': 100, 'height': 50}`
+</ParamField>
+
+### viewport
+
+<ParamField path="viewport" type="dict | ViewportSize">
+  Content area size (rendering area inside the window).
+  
+  **Example:** `{'width': 1280, 'height': 720}`
+  
+  Same format as `window_size`.
+</ParamField>
+
+### no_viewport
+
+<ParamField path="no_viewport" type="bool | None" default="None">
+  Disable viewport emulation - content fits to window size.
+</ParamField>
+
+### device_scale_factor
+
+<ParamField path="device_scale_factor" type="float">
+  Device scale factor (DPI multiplier).
+  
+  Set to `2.0` or `3.0` for high-resolution screenshots.
+</ParamField>
+
+---
+
+## Browser Behavior
+
+### keep_alive
+
+<ParamField path="keep_alive" type="bool | None" default="None">
+  Keep browser running after agent completes.
+  
+  Useful for debugging or manual inspection.
+</ParamField>
+
+### allowed_domains
+
+<ParamField path="allowed_domains" type="list[string]">
+  Restrict navigation to specific domains.
+  
+  **Pattern formats:**
+  - `'example.com'` - Matches only `https://example.com/*`
+  - `'*.example.com'` - Matches `https://example.com/*` and subdomains
+  - `'http*://example.com'` - Matches both http and https
+  - `'chrome-extension://*'` - Matches Chrome extension URLs
+  
+  **Security:** Wildcards in TLD (e.g., `example.*`) are not allowed
+  
+  **Performance:** Lists with 100+ domains are automatically optimized for O(1) lookup
+  
+  **Example:** `['*.google.com', 'https://example.com', 'chrome-extension://*']`
+</ParamField>
+
+### prohibited_domains
+
+<ParamField path="prohibited_domains" type="list[string]">
+  Block navigation to specific domains. Uses same pattern formats as `allowed_domains`.
+  
+  When both `allowed_domains` and `prohibited_domains` are set, `allowed_domains` takes precedence.
+  
+  **Example:** `['pornhub.com', '*.gambling-site.net']`
+</ParamField>
+
+### enable_default_extensions
+
+<ParamField path="enable_default_extensions" type="bool" default="True">
+  Load automation extensions:
+  - uBlock Origin (ad blocker)
+  - Cookie handlers
+  - ClearURLs (tracker removal)
+</ParamField>
+
+### cross_origin_iframes
+
+<ParamField path="cross_origin_iframes" type="bool" default="False">
+  Enable cross-origin iframe support.
+  
+  **Note:** May increase complexity
+</ParamField>
+
+### is_local
+
+<ParamField path="is_local" type="bool" default="True">
+  Whether this is a local browser instance.
+  
+  Set to `False` for remote browsers. Automatically set to `True` if `executable_path` is provided.
+  
+  This affects download behavior and file handling.
+</ParamField>
+
+---
+
+## User Data & Profiles
+
+### user_data_dir
+
+<ParamField path="user_data_dir" type="string | Path" default="auto-generated temp">
+  Directory for browser profile data (cookies, history, extensions).
+  
+  Use `None` for incognito mode (no persistent data).
+</ParamField>
+
+### profile_directory
+
+<ParamField path="profile_directory" type="string" default="Default">
+  Chrome profile subdirectory name.
+  
+  **Examples:** `'Profile 1'`, `'Work Profile'`
+</ParamField>
+
+### storage_state
+
+<ParamField path="storage_state" type="string | dict">
+  Browser storage state (cookies, localStorage).
+  
+  Can be a file path (string) or a dict object.
+</ParamField>
+
+---
+
+## Network & Security
+
+### proxy
+
+<ParamField path="proxy" type="ProxySettings">
+  Proxy configuration.
+  
+  **Example:**
+  ```python
+  from browser_use.browser import ProxySettings
+  
+  proxy = ProxySettings(
+      server='http://proxy.example.com:8080',
+      bypass='localhost,127.0.0.1',
+      username='user',
+      password='pass'
+  )
+  ```
+</ParamField>
+
+### permissions
+
+<ParamField path="permissions" type="list[string]" default="['clipboardReadWrite', 'notifications']">
+  Browser permissions to grant automatically.
+  
+  **Example:** `['camera', 'microphone', 'geolocation']`
+</ParamField>
+
+### headers
+
+<ParamField path="headers" type="dict">
+  Additional HTTP headers for connect requests.
+  
+  **Remote browsers only**
+</ParamField>
+
+---
+
+## Browser Launch
+
+### executable_path
+
+<ParamField path="executable_path" type="string">
+  Path to browser executable for custom installations.
+  
+  **Platform examples:**
+  - **macOS:** `'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'`
+  - **Windows:** `'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'`
+  - **Linux:** `'/usr/bin/google-chrome'`
+</ParamField>
+
+### channel
+
+<ParamField path="channel" type="string">
+  Browser channel to use.
+  
+  **Options:** `'chromium'`, `'chrome'`, `'chrome-beta'`, `'msedge'`
+</ParamField>
+
+### args
+
+<ParamField path="args" type="list[string]">
+  Additional command-line arguments for the browser.
+  
+  **Example:** `['--disable-gpu', '--custom-flag=value', '--another-flag']`
+</ParamField>
+
+### env
+
+<ParamField path="env" type="dict">
+  Environment variables for browser process.
+  
+  **Example:** `{'DISPLAY': ':0', 'LANG': 'en_US.UTF-8', 'CUSTOM_VAR': 'test'}`
+</ParamField>
+
+### chromium_sandbox
+
+<ParamField path="chromium_sandbox" type="bool" default="True (except Docker)">
+  Enable Chromium sandboxing for security.
+  
+  Automatically disabled in Docker environments.
+</ParamField>
+
+### devtools
+
+<ParamField path="devtools" type="bool" default="False">
+  Open DevTools panel automatically.
+  
+  **Requires:** `headless=False`
+</ParamField>
+
+### ignore_default_args
+
+<ParamField path="ignore_default_args" type="list[string] | bool">
+  List of default args to disable, or `True` to disable all.
+  
+  **Example:** `['--enable-automation', '--disable-extensions']`
+</ParamField>
+
+---
+
+## Timing & Performance
+
+### minimum_wait_page_load_time
+
+<ParamField path="minimum_wait_page_load_time" type="float" default="0.25">
+  Minimum time to wait before capturing page state (seconds).
+</ParamField>
+
+### wait_for_network_idle_page_load_time
+
+<ParamField path="wait_for_network_idle_page_load_time" type="float" default="0.5">
+  Time to wait for network activity to cease (seconds).
+</ParamField>
+
+### wait_between_actions
+
+<ParamField path="wait_between_actions" type="float" default="0.5">
+  Time to wait between agent actions (seconds).
+</ParamField>
+
+---
+
+## AI Integration
+
+### highlight_elements
+
+<ParamField path="highlight_elements" type="bool" default="True">
+  Highlight interactive elements for AI vision.
+  
+  Adds visual markers to clickable elements in screenshots.
+</ParamField>
+
+### paint_order_filtering
+
+<ParamField path="paint_order_filtering" type="bool" default="True">
+  Enable paint order filtering to optimize DOM tree.
+  
+  Removes elements hidden behind others. Slightly experimental.
+</ParamField>
+
+---
+
+## Downloads & Files
+
+### accept_downloads
+
+<ParamField path="accept_downloads" type="bool" default="True">
+  Automatically accept all downloads.
+</ParamField>
+
+### downloads_path
+
+<ParamField path="downloads_path" type="string | Path">
+  Directory for downloaded files.
+  
+  **Example:** `'./downloads'`
+</ParamField>
+
+### auto_download_pdfs
+
+<ParamField path="auto_download_pdfs" type="bool" default="True">
+  Automatically download PDFs instead of viewing in browser.
+</ParamField>
+
+---
+
+## Device Emulation
+
+### user_agent
+
+<ParamField path="user_agent" type="string">
+  Custom user agent string.
+  
+  **Example:** `'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)'`
+</ParamField>
+
+### screen
+
+<ParamField path="screen" type="dict | ViewportSize">
+  Screen size information. Same format as `window_size`.
+</ParamField>
+
+---
+
+## Recording & Debugging
+
+<Warning>
+  Video recording requires optional dependencies:
+  ```bash
+  pip install "browser-use[video]"
+  ```
+  Or:
+  ```bash
+  pip install imageio[ffmpeg] numpy
+  ```
+</Warning>
+
+### record_video_dir
+
+<ParamField path="record_video_dir" type="string | Path">
+  Directory to save video recordings as `.mp4` files.
+</ParamField>
+
+### record_video_size
+
+<ParamField path="record_video_size" type="ViewportSize" default="viewport size">
+  Frame size (width, height) for video recording.
+</ParamField>
+
+### record_video_framerate
+
+<ParamField path="record_video_framerate" type="int" default="30">
+  Framerate for video recording.
+</ParamField>
+
+### record_har_path
+
+<ParamField path="record_har_path" type="string | Path">
+  Path to save network trace files as `.har` format.
+</ParamField>
+
+### traces_dir
+
+<ParamField path="traces_dir" type="string | Path">
+  Directory to save complete trace files for debugging.
+</ParamField>
+
+### record_har_content
+
+<ParamField path="record_har_content" type="'omit' | 'embed' | 'attach'" default="embed">
+  HAR content mode.
+</ParamField>
+
+### record_har_mode
+
+<ParamField path="record_har_mode" type="'full' | 'minimal'" default="full">
+  HAR recording mode.
+</ParamField>
+
+---
+
+## Advanced Options
+
+### disable_security
+
+<ParamField path="disable_security" type="bool" default="False">
+  ⚠️ **NOT RECOMMENDED** - Disables all browser security features.
+  
+  Only use for testing in controlled environments.
+</ParamField>
+
+### deterministic_rendering
+
+<ParamField path="deterministic_rendering" type="bool" default="False">
+  ⚠️ **NOT RECOMMENDED** - Forces consistent rendering but reduces performance.
+</ParamField>
+
+---
+
+## Example
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+browser = Browser(
+    headless=False,
+    window_size={'width': 1920, 'height': 1080'},
+    allowed_domains=['*.example.com', '*.google.com'],
+    highlight_elements=True,
+    record_video_dir='./recordings',
+)
+
+agent = Agent(
+    task="Search and extract data",
+    llm=ChatBrowserUse(),
+    browser=browser
+)
+
+await agent.run()
+```
+
+---
+
+## Related Configuration
+
+- [Agent Settings](/api/config/agent-settings) - Configure agent behavior
+- [Sandbox Settings](/api/config/sandbox-settings) - Configure cloud execution

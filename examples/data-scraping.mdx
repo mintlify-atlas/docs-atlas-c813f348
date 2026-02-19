@@ -1,0 +1,261 @@
+---
+title: Web Scraping
+description: Extract structured data from websites with Browser Use
+icon: database
+---
+
+Browser Use makes web scraping easy by combining browser automation with AI-powered data extraction.
+
+## Basic Data Extraction
+
+Extract quotes and metadata from a website:
+
+```python
+import asyncio
+from browser_use import Agent, ChatBrowserUse
+from dotenv import load_dotenv
+
+load_dotenv()
+
+async def main():
+    # Initialize the model
+    llm = ChatBrowserUse(model='bu-2-0')
+    
+    # Define a data extraction task
+    task = """
+    Go to https://quotes.toscrape.com/ and extract the following information:
+    - The first 5 quotes on the page
+    - The author of each quote
+    - The tags associated with each quote
+    
+    Present the information in a clear, structured format like:
+    Quote 1: "[quote text]" - Author: [author name] - Tags: [tag1, tag2, ...]
+    Quote 2: "[quote text]" - Author: [author name] - Tags: [tag1, tag2, ...]
+    etc.
+    """
+    
+    # Create and run the agent
+    agent = Agent(task=task, llm=llm)
+    await agent.run()
+
+if __name__ == '__main__':
+    asyncio.run(main())
+```
+
+## Structured Output with Pydantic
+
+For type-safe, structured data extraction, use Pydantic models:
+
+```python
+import asyncio
+from pydantic import BaseModel, Field
+from browser_use import Agent, ChatBrowserUse
+
+class Quote(BaseModel):
+    text: str = Field(..., description='The quote text')
+    author: str = Field(..., description='Quote author')
+    tags: list[str] = Field(default_factory=list, description='Associated tags')
+
+class QuotesData(BaseModel):
+    quotes: list[Quote] = Field(default_factory=list)
+
+async def main():
+    task = "Go to https://quotes.toscrape.com/ and extract the first 5 quotes"
+    
+    agent = Agent(
+        task=task,
+        llm=ChatBrowserUse(),
+        output_model_schema=QuotesData
+    )
+    
+    result = await agent.run()
+    
+    # Access structured data
+    if result and result.structured_output:
+        quotes_data = result.structured_output
+        for quote in quotes_data.quotes:
+            print(f"{quote.author}: {quote.text}")
+            print(f"Tags: {', '.join(quote.tags)}\n")
+
+if __name__ == '__main__':
+    asyncio.run(main())
+```
+
+## E-commerce Price Comparison
+
+Real-world example: Compare product prices across multiple marketplaces:
+
+```python
+import asyncio
+from pydantic import BaseModel, Field
+from browser_use import Agent, Browser, ChatBrowserUse
+
+class ProductListing(BaseModel):
+    """A single product listing"""
+    title: str = Field(..., description='Product title')
+    url: str = Field(..., description='Full URL to listing')
+    price: float = Field(..., description='Price as number')
+    condition: str | None = Field(None, description='Condition: Used, New, Refurbished')
+    source: str = Field(..., description='Source website: Amazon, eBay, or Swappa')
+
+class PriceComparison(BaseModel):
+    """Price comparison results"""
+    search_query: str = Field(..., description='The search query used')
+    listings: list[ProductListing] = Field(default_factory=list)
+
+async def find_best_price(item: str = 'Used iPhone 12'):
+    """
+    Search for an item across multiple marketplaces and compare prices.
+    """
+    llm = ChatBrowserUse(model='bu-2-0')
+    
+    # Task prompt
+    task = f"""
+    Search for "{item}" on eBay, Amazon, and Swappa. Get 2-3 listings from each site.
+    
+    For each site:
+    1. Search for "{item}"
+    2. Extract ANY 2-3 listings you find
+    3. Get: title, price (number only), source, full URL, condition
+    4. Move to next site
+    
+    Sites:
+    - eBay: https://www.ebay.com/
+    - Amazon: https://www.amazon.com/
+    - Swappa: https://swappa.com/
+    """
+    
+    # Create agent with structured output
+    agent = Agent(
+        llm=llm,
+        task=task,
+        output_model_schema=PriceComparison,
+    )
+    
+    # Run the agent
+    result = await agent.run()
+    return result
+
+if __name__ == '__main__':
+    result = asyncio.run(find_best_price('Used iPhone 12'))
+    
+    # Access structured output
+    if result and result.structured_output:
+        comparison = result.structured_output
+        print(f'\nPrice Comparison: {comparison.search_query}\n')
+        
+        for listing in comparison.listings:
+            print(f'Title: {listing.title}')
+            print(f'Price: ${listing.price}')
+            print(f'Source: {listing.source}')
+            print(f'URL: {listing.url}')
+            print(f'Condition: {listing.condition or "N/A"}\n')
+```
+
+## Extracting Table Data
+
+Extract structured data from HTML tables:
+
+```python
+task = """
+Go to https://example.com/products and extract the product table:
+- Product names
+- Prices
+- Availability status
+- SKU numbers
+
+Format as a list with each product's complete information.
+"""
+
+agent = Agent(task=task, llm=ChatBrowserUse())
+result = await agent.run()
+```
+
+## Pagination Handling
+
+Scrape data across multiple pages:
+
+```python
+task = """
+Go to https://quotes.toscrape.com/ and:
+1. Extract quotes from the first 3 pages
+2. For each page, get all quotes with authors and tags
+3. Click 'Next' to navigate to the next page
+4. Compile all data into a single list
+"""
+
+agent = Agent(
+    task=task,
+    llm=ChatBrowserUse(),
+    max_steps=50  # Allow more steps for pagination
+)
+```
+
+## Extracting PDF Content
+
+Browser Use can navigate to and extract content from PDF files:
+
+```python
+import asyncio
+from browser_use import Agent, ChatOpenAI
+
+async def main():
+    agent = Agent(
+        task="""
+        Navigate to this PDF URL and tell me what is on page 3:
+        https://docs.house.gov/meetings/GO/GO00/20220929/115171/HHRG-117-GO00-20220929-SD010.pdf
+        """,
+        llm=ChatOpenAI(model='gpt-4.1-mini'),
+    )
+    result = await agent.run()
+
+if __name__ == '__main__':
+    asyncio.run(main())
+```
+
+## Using the Extract Action
+
+For targeted extraction, reference the `extract` action directly:
+
+```python
+task = """
+1. Go to https://quotes.toscrape.com/
+2. Use the extract action with the query "first 5 quotes with authors and tags"
+3. Return the structured data
+"""
+
+agent = Agent(task=task, llm=ChatBrowserUse())
+```
+
+## Scraping Tips
+
+<Steps>
+  <Step title="Be Specific">
+    Clearly define what data you want to extract, including field names and format
+  </Step>
+  
+  <Step title="Use Structured Output">
+    Define Pydantic models for type-safe, validated data extraction
+  </Step>
+  
+  <Step title="Handle Dynamic Content">
+    Allow time for JavaScript-rendered content to load before extraction
+  </Step>
+  
+  <Step title="Test Incrementally">
+    Start with a single page before scaling to pagination or multiple sites
+  </Step>
+</Steps>
+
+<Warning>
+**Rate Limiting**: Be respectful of website resources. Add delays between requests when scraping multiple pages.
+</Warning>
+
+<Note>
+**Legal Considerations**: Always check a website's robots.txt and terms of service before scraping. Respect rate limits and copyright.
+</Note>
+
+## Related Examples
+
+- [Research](/examples/research) - Gather and analyze information from multiple sources
+- [Shopping](/examples/shopping) - Extract product information for comparison

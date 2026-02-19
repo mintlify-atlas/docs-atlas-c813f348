@@ -1,0 +1,554 @@
+---
+title: 'Structured Output'
+description: 'Extract type-safe, validated data using Pydantic models'
+---
+
+## Overview
+
+Structured output lets you define the exact data format you want from agent execution using Pydantic models. Instead of parsing unstructured text, you get validated Python objects with type safety and automatic serialization.
+
+<Info>
+  Structured output is ideal for **data extraction tasks** where you need reliable, type-safe results rather than free-form text.
+</Info>
+
+## Quick Start
+
+```python
+from browser_use import Agent, ChatBrowserUse
+from pydantic import BaseModel
+
+class Product(BaseModel):
+    name: str
+    price: float
+    in_stock: bool
+
+agent = Agent(
+    task="Go to example.com/product and extract product details",
+    llm=ChatBrowserUse(),
+    output_model_schema=Product,
+)
+
+history = await agent.run()
+
+# Type-safe structured output
+product: Product = history.structured_output
+print(f"{product.name}: ${product.price}")
+```
+
+## Defining Output Models
+
+### Basic Models
+
+```python
+from pydantic import BaseModel, Field
+
+class NewsArticle(BaseModel):
+    title: str
+    author: str
+    published_date: str
+    content: str
+    tags: list[str]
+
+agent = Agent(
+    task="Extract the main article from this news page",
+    llm=ChatBrowserUse(),
+    output_model_schema=NewsArticle,
+)
+```
+
+### With Field Descriptions
+
+Help the LLM understand what to extract:
+
+```python
+class CompanyInfo(BaseModel):
+    name: str = Field(description="The company's full legal name")
+    founded_year: int = Field(description="Year the company was founded")
+    employees: int | None = Field(
+        default=None,
+        description="Number of employees, if available"
+    )
+    headquarters: str = Field(description="City and country of headquarters")
+
+agent = Agent(
+    task="Extract company information from the about page",
+    llm=ChatBrowserUse(),
+    output_model_schema=CompanyInfo,
+)
+```
+
+### Nested Models
+
+```python
+class Address(BaseModel):
+    street: str
+    city: str
+    state: str
+    zip_code: str
+
+class Restaurant(BaseModel):
+    name: str
+    address: Address
+    rating: float
+    price_range: str
+    cuisine: list[str]
+
+agent = Agent(
+    task="Extract restaurant details including full address",
+    llm=ChatBrowserUse(),
+    output_model_schema=Restaurant,
+)
+```
+
+### Lists of Objects
+
+```python
+class SearchResult(BaseModel):
+    title: str
+    url: str
+    snippet: str
+
+class SearchResults(BaseModel):
+    query: str
+    results: list[SearchResult]
+    total_results: int
+
+agent = Agent(
+    task="Search for 'browser automation' and extract top 5 results",
+    llm=ChatBrowserUse(),
+    output_model_schema=SearchResults,
+)
+
+history = await agent.run()
+data: SearchResults = history.structured_output
+
+for result in data.results:
+    print(f"{result.title}: {result.url}")
+```
+
+From `examples/features/custom_output.py:29-31`.
+
+## Accessing Results
+
+### Via AgentHistoryList
+
+```python
+history = await agent.run()
+
+# Get structured output (auto-parsed)
+if history.structured_output:
+    product = history.structured_output
+    print(product.name)
+
+# Alternative: parse manually
+final_result = history.final_result()
+if final_result:
+    product = Product.model_validate_json(final_result)
+```
+
+### With Sandbox Execution
+
+Structured output works with sandbox:
+
+```python
+from browser_use import sandbox, Browser
+from browser_use.agent.views import AgentHistoryList
+
+class IPLocation(BaseModel):
+    ip_address: str
+    country: str
+    city: str | None = None
+
+@sandbox(log_level='INFO')
+async def get_ip_location(browser: Browser) -> AgentHistoryList:
+    agent = Agent(
+        task="Go to ipinfo.io and extract my IP and location",
+        browser=browser,
+        llm=ChatBrowserUse(),
+        output_model_schema=IPLocation,
+    )
+    return await agent.run()
+
+# Parse structured output from sandbox result
+history = await get_ip_location()
+location = history.get_structured_output(IPLocation)
+
+if location:
+    print(f"IP: {location.ip_address}")
+    print(f"Location: {location.city}, {location.country}")
+```
+
+From `examples/sandbox/structured_output.py:17-46`.
+
+<Note>
+  When using sandbox, use `get_structured_output(Model)` instead of `structured_output` property, as the private `_output_model_schema` attribute isn't serialized.
+</Note>
+
+## Complex Examples
+
+### E-commerce Product Catalog
+
+```python
+from enum import Enum
+from decimal import Decimal
+
+class ProductCondition(str, Enum):
+    NEW = "new"
+    USED = "used"
+    REFURBISHED = "refurbished"
+
+class Review(BaseModel):
+    rating: int = Field(ge=1, le=5, description="Star rating 1-5")
+    text: str
+    author: str
+    helpful_count: int = 0
+
+class Product(BaseModel):
+    name: str
+    sku: str
+    price: Decimal
+    condition: ProductCondition
+    in_stock: bool
+    shipping_cost: Decimal | None = None
+    reviews: list[Review]
+    average_rating: float = Field(ge=0, le=5)
+
+agent = Agent(
+    task="Extract complete product information including reviews",
+    llm=ChatBrowserUse(),
+    output_model_schema=Product,
+)
+
+history = await agent.run()
+product = history.structured_output
+
+print(f"{product.name} ({product.condition.value})")
+print(f"Price: ${product.price}")
+print(f"Rating: {product.average_rating}/5 ({len(product.reviews)} reviews)")
+```
+
+### Social Media Post Analysis
+
+```python
+from datetime import datetime
+
+class Engagement(BaseModel):
+    likes: int
+    comments: int
+    shares: int
+    views: int | None = None
+
+class Comment(BaseModel):
+    author: str
+    text: str
+    likes: int
+
+class Post(BaseModel):
+    id: str
+    author: str
+    content: str
+    posted_at: str = Field(description="ISO format datetime")
+    engagement: Engagement
+    top_comments: list[Comment] = Field(
+        default_factory=list,
+        description="Top 3 comments by likes"
+    )
+    hashtags: list[str]
+
+agent = Agent(
+    task="Extract details from the top post on the feed",
+    llm=ChatBrowserUse(),
+    output_model_schema=Post,
+)
+
+history = await agent.run()
+post = history.structured_output
+
+total_engagement = (
+    post.engagement.likes + 
+    post.engagement.comments + 
+    post.engagement.shares
+)
+print(f"Total engagement: {total_engagement}")
+```
+
+### Financial Data Extraction
+
+```python
+class StockPrice(BaseModel):
+    symbol: str
+    current_price: Decimal
+    change: Decimal
+    change_percent: float
+    day_high: Decimal
+    day_low: Decimal
+    volume: int
+
+class Portfolio(BaseModel):
+    stocks: list[StockPrice]
+    total_value: Decimal
+    day_change: Decimal
+    day_change_percent: float
+
+agent = Agent(
+    task="Extract my portfolio summary from the dashboard",
+    llm=ChatBrowserUse(),
+    output_model_schema=Portfolio,
+)
+
+history = await agent.run()
+portfolio = history.structured_output
+
+for stock in portfolio.stocks:
+    direction = "📈" if stock.change > 0 else "📉"
+    print(f"{stock.symbol}: ${stock.current_price} {direction} {stock.change_percent}%")
+```
+
+## Validation
+
+### Built-in Validators
+
+```python
+from pydantic import Field, field_validator, EmailStr, HttpUrl
+
+class UserProfile(BaseModel):
+    username: str = Field(min_length=3, max_length=20)
+    email: EmailStr
+    website: HttpUrl | None = None
+    age: int = Field(ge=13, le=120, description="User's age")
+    bio: str = Field(max_length=500)
+    
+    @field_validator('username')
+    def username_alphanumeric(cls, v: str) -> str:
+        if not v.isalnum():
+            raise ValueError('Username must be alphanumeric')
+        return v
+
+agent = Agent(
+    task="Extract user profile information",
+    llm=ChatBrowserUse(),
+    output_model_schema=UserProfile,
+)
+```
+
+If the LLM returns invalid data, Pydantic will raise `ValidationError`.
+
+### Custom Validators
+
+```python
+from pydantic import model_validator
+
+class DateRange(BaseModel):
+    start_date: str
+    end_date: str
+    
+    @model_validator(mode='after')
+    def check_date_order(self) -> 'DateRange':
+        from datetime import datetime
+        start = datetime.fromisoformat(self.start_date)
+        end = datetime.fromisoformat(self.end_date)
+        
+        if start > end:
+            raise ValueError('start_date must be before end_date')
+        
+        return self
+
+class Event(BaseModel):
+    name: str
+    date_range: DateRange
+    location: str
+```
+
+## Error Handling
+
+### Validation Errors
+
+```python
+from pydantic import ValidationError
+
+try:
+    history = await agent.run()
+    data = history.structured_output
+    
+    if data is None:
+        print("No structured output returned")
+        print(f"Raw result: {history.final_result()}")
+except ValidationError as e:
+    print(f"Invalid data format: {e}")
+    # The LLM returned data that doesn't match your schema
+```
+
+### Optional Fields
+
+Make fields optional when data might not be available:
+
+```python
+class Article(BaseModel):
+    title: str  # Required
+    author: str | None = None  # Optional
+    published_date: str | None = None
+    tags: list[str] = Field(default_factory=list)  # Defaults to empty list
+```
+
+### Fallback Values
+
+```python
+history = await agent.run()
+
+if history.structured_output:
+    product = history.structured_output
+else:
+    # Fallback: parse from final_result string
+    result_text = history.final_result()
+    print(f"Unstructured result: {result_text}")
+```
+
+## Best Practices
+
+### 1. Clear Field Descriptions
+
+Help the LLM understand what to extract:
+
+```python
+# ✅ Good - descriptive fields
+class Product(BaseModel):
+    name: str = Field(description="Product name as shown on the page")
+    price: float = Field(description="Current price in USD, without currency symbol")
+    availability: str = Field(description="In stock, out of stock, or pre-order")
+
+# ❌ Bad - unclear fields
+class Product(BaseModel):
+    name: str
+    price: str  # Should be float, LLM might include "$"
+    status: str  # Unclear what this represents
+```
+
+### 2. Use Enums for Fixed Values
+
+```python
+from enum import Enum
+
+class OrderStatus(str, Enum):
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    SHIPPED = "shipped"
+    DELIVERED = "delivered"
+    CANCELLED = "cancelled"
+
+class Order(BaseModel):
+    order_id: str
+    status: OrderStatus  # LLM must return one of these values
+    total: Decimal
+```
+
+### 3. Provide Examples in Task
+
+```python
+agent = Agent(
+    task="""
+    Extract product information in this format:
+    - name: The product title
+    - price: Numeric price without currency symbol
+    - in_stock: true if available, false otherwise
+    
+    Example:
+    {
+        "name": "Wireless Mouse",
+        "price": 29.99,
+        "in_stock": true
+    }
+    """,
+    llm=ChatBrowserUse(),
+    output_model_schema=Product,
+)
+```
+
+### 4. Keep Models Focused
+
+```python
+# ✅ Good - focused model
+class SearchResult(BaseModel):
+    title: str
+    url: str
+    snippet: str
+
+# ❌ Bad - trying to extract too much
+class PageData(BaseModel):
+    url: str
+    title: str
+    all_links: list[str]
+    all_images: list[str]
+    all_text: str
+    metadata: dict
+    # Too much data, increases errors
+```
+
+## Integration with Tools
+
+Structured output works with custom tools:
+
+```python
+from browser_use import Tools, ActionResult
+
+tools = Tools()
+
+class EmailData(BaseModel):
+    subject: str
+    sender: str
+    date: str
+    body: str
+
+@tools.action('Extract email content')
+async def extract_email(email_selector: str) -> ActionResult:
+    # Use agent with structured output inside tool
+    agent = Agent(
+        task=f"Extract email details from {email_selector}",
+        llm=my_llm,
+        output_model_schema=EmailData,
+    )
+    history = await agent.run()
+    
+    if history.structured_output:
+        email = history.structured_output
+        return ActionResult(
+            extracted_content=f"Email from {email.sender}: {email.subject}",
+            success=True
+        )
+    
+    return ActionResult(error="Failed to extract email")
+```
+
+## Actor API Integration
+
+Use structured extraction with Actor API:
+
+```python
+from browser_use.actor import Page
+
+class ArticleContent(BaseModel):
+    title: str
+    author: str
+    published_date: str
+    paragraphs: list[str]
+
+async def extract_article(page: Page, llm) -> ArticleContent:
+    await page.goto("https://example.com/article")
+    
+    # Extract structured content from page
+    article = await page.extract_content(
+        prompt="Extract the article title, author, date, and all paragraphs",
+        structured_output=ArticleContent,
+        llm=llm
+    )
+    
+    return article
+```
+
+From `browser_use/actor/page.py:491-554`.
+
+## See Also
+
+- [Agent Output Format](/essentials/agent/output-format) - AgentHistoryList API
+- [Sandbox](/advanced/sandbox) - Production deployment with structured output
+- [Actor API](/advanced/actor-api) - Page-level content extraction
+- [Pydantic Documentation](https://docs.pydantic.dev/) - Full model capabilities

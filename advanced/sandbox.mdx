@@ -1,0 +1,461 @@
+---
+title: 'Sandbox Execution'
+description: 'Deploy Browser Use to production with the sandbox decorator'
+---
+
+## Overview
+
+The `@sandbox` decorator lets you run browser automation code in a production-ready cloud environment with zero infrastructure setup. Your local code is serialized, sent to Browser Use Cloud, and executed in a managed environment with automatic browser provisioning, authentication handling, and result streaming.
+
+<Info>
+  Sandboxes are the **easiest way to run Browser-Use in production**. We handle agents, browsers, persistence, auth, cookies, and LLMs. The agent runs right next to the browser, so latency is minimal.
+</Info>
+
+## Quick Start
+
+Wrap your existing local code with `@sandbox()` - that's it:
+
+```python
+from browser_use import Browser, sandbox, ChatBrowserUse
+from browser_use.agent.service import Agent
+import asyncio
+
+@sandbox()
+async def my_task(browser: Browser):
+    agent = Agent(
+        task="Find the top HN post", 
+        browser=browser, 
+        llm=ChatBrowserUse()
+    )
+    await agent.run()
+
+# Just call it like any async function
+asyncio.run(my_task())
+```
+
+<Note>
+  The `browser` parameter is **automatically injected** - don't pass it when calling your function.
+</Note>
+
+## How It Works
+
+### Code Serialization
+
+The sandbox decorator:
+
+1. **Extracts your function code** - removes the decorator and gets clean source
+2. **Captures all dependencies** - explicit parameters, closure variables, and globals
+3. **Serializes with cloudpickle** - robust serialization for complex Python objects
+4. **Injects dependencies** - recreates your execution environment remotely
+5. **Streams results back** - real-time logs and final return value
+
+From `browser_use/sandbox/sandbox.py:215-350`:
+
+```python
+@sandbox(
+    BROWSER_USE_API_KEY=None,
+    cloud_profile_id=None,
+    cloud_proxy_country_code=None,
+    cloud_timeout=None,
+    server_url=None,
+    log_level='INFO',
+    quiet=False,
+    headers=None,
+    on_browser_created=None,
+    on_instance_ready=None,
+    on_log=None,
+    on_result=None,
+    on_error=None,
+    **env_vars
+)
+async def task(browser: Browser, url: str, max_steps: int) -> str:
+    agent = Agent(task=url, browser=browser)
+    await agent.run(max_steps=max_steps)
+    return "done"
+```
+
+### Function Requirements
+
+<Warning>
+  Your function **MUST** have `browser: Browser` as a parameter. The browser is automatically injected - do NOT pass it when calling.
+</Warning>
+
+```python
+# ✅ Correct
+@sandbox()
+async def task(browser: Browser, url: str):
+    ...
+
+result = await task(url="https://example.com")
+
+# ❌ Wrong - browser parameter missing
+@sandbox()
+async def task(url: str):
+    ...
+
+# ❌ Wrong - passing browser explicitly
+result = await task(browser=my_browser, url="...")
+```
+
+## Configuration Parameters
+
+### API Authentication
+
+```python
+# Option 1: Environment variable (recommended)
+export BROWSER_USE_API_KEY=your_key
+
+# Option 2: Pass directly
+@sandbox(BROWSER_USE_API_KEY="your_key")
+async def task(browser: Browser):
+    ...
+```
+
+Get your API key at [cloud.browser-use.com/new-api-key](https://cloud.browser-use.com/new-api-key)
+
+### Cloud Browser Settings
+
+```python
+@sandbox(
+    cloud_profile_id='your-profile-id',  # Use authenticated browser profile
+    cloud_proxy_country_code='us',       # Proxy location: us, uk, fr, it, jp, au, de, fi, ca, in
+    cloud_timeout=30,                    # Session timeout in minutes (max: 15 free, 240 paid)
+)
+async def authenticated_task(browser: Browser):
+    # Browser already has your cookies and auth
+    agent = Agent(task="Check my Gmail inbox", browser=browser, llm=ChatBrowserUse())
+    await agent.run()
+```
+
+<Info>
+  Cloud proxies provide residential IPs that bypass captchas, Cloudflare, and geo-restrictions. See [Cloud Browser](/advanced/cloud-browser) for details.
+</Info>
+
+### Logging & Output
+
+```python
+@sandbox(
+    log_level='DEBUG',    # INFO, DEBUG, WARNING, ERROR
+    quiet=False,          # Suppress console output
+)
+async def task(browser: Browser):
+    ...
+```
+
+### Custom Environment Variables
+
+```python
+@sandbox(
+    DATABASE_URL="postgresql://...",
+    API_KEY="secret",
+    ENVIRONMENT="production",
+)
+async def task(browser: Browser):
+    # Access via os.environ in remote execution
+    import os
+    db_url = os.environ['DATABASE_URL']
+    ...
+```
+
+## Event Callbacks
+
+Monitor execution with real-time callbacks:
+
+```python
+from browser_use.sandbox.views import BrowserCreatedData, LogData, ResultData, ErrorData
+
+def on_browser_ready(data: BrowserCreatedData):
+    print(f"Browser session: {data.session_id}")
+    print(f"Live view: {data.live_url}")
+
+def on_log(data: LogData):
+    if data.level == 'error':
+        print(f"Error: {data.message}")
+
+def on_result(data: ResultData):
+    if data.execution_response.success:
+        print(f"Result: {data.execution_response.result}")
+
+@sandbox(
+    on_browser_created=on_browser_ready,
+    on_log=on_log,
+    on_result=on_result,
+)
+async def task(browser: Browser):
+    ...
+```
+
+### Available Events
+
+From `browser_use/sandbox/views.py:14-24`:
+
+- `BROWSER_CREATED` - Browser session provisioned with live URL
+- `INSTANCE_READY` - Container ready, execution starting
+- `LOG` - Runtime logs (stdout, stderr, info, warning, error)
+- `RESULT` - Final execution result
+- `ERROR` - Execution errors
+
+## Return Values
+
+The sandbox preserves your function's return type:
+
+```python
+from pydantic import BaseModel
+
+class SearchResult(BaseModel):
+    title: str
+    url: str
+    snippet: str
+
+@sandbox()
+async def search_google(browser: Browser, query: str) -> list[SearchResult]:
+    agent = Agent(
+        task=f"Search Google for '{query}' and extract top 3 results",
+        browser=browser,
+        llm=ChatBrowserUse(),
+        output_model_schema=list[SearchResult]
+    )
+    history = await agent.run()
+    return history.structured_output  # Auto-parsed to list[SearchResult]
+
+# Type-safe result
+results = await search_google(query="browser automation")
+for result in results:
+    print(f"{result.title}: {result.url}")
+```
+
+## Live Browser Viewing
+
+Every sandbox execution gets a **live browser URL** where you can watch the automation in real-time:
+
+```python
+@sandbox()
+async def task(browser: Browser):
+    agent = Agent(task="Your task", browser=browser, llm=ChatBrowserUse())
+    await agent.run()
+
+asyncio.run(task())
+
+# Output:
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 👁️  LIVE BROWSER VIEW (Click to watch)
+# 🔗 https://cloud.browser-use.com/live/session-id
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+Click the URL to see:
+- Real-time browser screen
+- Element highlights as agent interacts
+- Network activity
+- Console logs
+
+## Advanced Examples
+
+### Passing Complex Data
+
+The sandbox uses `cloudpickle` for robust serialization:
+
+```python
+from pydantic import BaseModel
+import pandas as pd
+
+class ProcessingConfig(BaseModel):
+    max_items: int
+    filters: dict[str, str]
+
+@sandbox()
+async def process_data(browser: Browser, config: ProcessingConfig, dataframe: pd.DataFrame):
+    # Both Pydantic models and DataFrames serialize correctly
+    agent = Agent(
+        task=f"Process {len(dataframe)} items with filters: {config.filters}",
+        browser=browser,
+        llm=ChatBrowserUse()
+    )
+    await agent.run()
+    return len(dataframe)
+
+config = ProcessingConfig(max_items=100, filters={"status": "active"})
+df = pd.read_csv("data.csv")
+count = await process_data(config=config, dataframe=df)
+```
+
+### Closure Variables
+
+Closure variables are automatically captured:
+
+```python
+def create_scraper(api_key: str, base_url: str):
+    @sandbox()
+    async def scrape(browser: Browser, path: str):
+        # api_key and base_url are captured from closure
+        full_url = f"{base_url}/{path}"
+        agent = Agent(
+            task=f"Scrape {full_url} using API key {api_key}",
+            browser=browser,
+            llm=ChatBrowserUse()
+        )
+        await agent.run()
+    
+    return scrape
+
+# Create configured scraper
+my_scraper = create_scraper(api_key="secret", base_url="https://api.example.com")
+
+# Use it
+await my_scraper(path="users/123")
+```
+
+### Error Handling
+
+```python
+from browser_use.sandbox.views import SandboxError
+
+@sandbox(cloud_timeout=10)
+async def risky_task(browser: Browser):
+    agent = Agent(task="Complex task", browser=browser, llm=ChatBrowserUse())
+    await agent.run(max_steps=100)
+
+try:
+    result = await risky_task()
+except SandboxError as e:
+    print(f"Sandbox execution failed: {e}")
+    # Handle timeout, network errors, execution failures
+except Exception as e:
+    print(f"Unexpected error: {e}")
+```
+
+## Production Best Practices
+
+### 1. Use Profiles for Authentication
+
+```bash
+# Sync local cookies to cloud
+export BROWSER_USE_API_KEY=your_key
+curl -fsSL https://browser-use.com/profile.sh | sh
+```
+
+Then use the profile ID:
+
+```python
+@sandbox(cloud_profile_id='your-profile-id')
+async def authenticated_task(browser: Browser):
+    # Browser has your auth cookies
+    ...
+```
+
+### 2. Set Appropriate Timeouts
+
+```python
+@sandbox(
+    cloud_timeout=60,  # Session timeout in minutes
+)
+async def long_running_task(browser: Browser):
+    agent = Agent(task="...", browser=browser, llm=ChatBrowserUse())
+    await agent.run(max_steps=500)  # Agent-level step limit
+```
+
+### 3. Use Proxies for Production
+
+```python
+@sandbox(
+    cloud_proxy_country_code='us',  # Residential proxy
+)
+async def production_scrape(browser: Browser):
+    # Bypasses captchas and rate limits
+    ...
+```
+
+### 4. Monitor with Callbacks
+
+```python
+import logging
+
+logger = logging.getLogger(__name__)
+
+def log_to_monitoring(data: LogData):
+    if data.level == 'error':
+        logger.error(f"Sandbox error: {data.message}")
+        # Send to monitoring service
+
+@sandbox(on_log=log_to_monitoring)
+async def monitored_task(browser: Browser):
+    ...
+```
+
+## Limitations
+
+- **Function signature**: Must include `browser: Browser` parameter
+- **Return types**: Must be JSON-serializable or cloudpickle-compatible
+- **Imports**: Only used imports are automatically extracted
+- **Global state**: Module-level variables are serialized via cloudpickle
+- **File system**: No access to local files (use `env_vars` for config)
+
+## Debugging
+
+### Enable Debug Logging
+
+```python
+@sandbox(log_level='DEBUG')
+async def task(browser: Browser):
+    ...
+```
+
+### Check Serialization
+
+The decorator shows what code is sent:
+
+```python
+import os
+os.environ['BROWSER_USE_DEBUG'] = '1'
+
+@sandbox()
+async def task(browser: Browser):
+    ...
+
+# Will print serialized code before execution
+```
+
+### Local Testing First
+
+Test locally before deploying:
+
+```python
+from browser_use import Browser, ChatBrowserUse
+from browser_use.agent.service import Agent
+
+# Test locally without @sandbox
+async def task(browser: Browser):
+    agent = Agent(task="...", browser=browser, llm=ChatBrowserUse())
+    return await agent.run()
+
+# Once it works locally, add @sandbox
+browser = Browser()
+await task(browser)
+```
+
+## Cost Optimization
+
+- **Free tier**: 15 minute sessions, standard browsers
+- **Paid tier**: 240 minute sessions, faster provisioning, priority support
+- **Billing**: Per-minute browser execution + LLM costs
+
+```python
+# Minimize costs
+@sandbox(
+    cloud_timeout=5,  # Short timeout for quick tasks
+)
+async def quick_task(browser: Browser):
+    agent = Agent(
+        task="Quick data extraction",
+        browser=browser,
+        llm=ChatBrowserUse(),  # Cost-effective model
+        flash_mode=True,        # Faster execution
+    )
+    await agent.run(max_steps=10)
+```
+
+## See Also
+
+- [Cloud Browser](/advanced/cloud-browser) - Browser provisioning and proxies
+- [Structured Output](/advanced/structured-output) - Type-safe return values
+- [Production Guide](/production) - Full production deployment guide

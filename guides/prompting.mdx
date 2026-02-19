@@ -1,0 +1,619 @@
+---
+title: 'Prompting Best Practices'
+description: 'Write effective prompts for browser agents'
+icon: 'message'
+---
+
+## Overview
+
+Effective prompting is the key to successful browser automation. This guide teaches you how to write tasks that consistently produce great results.
+
+<Tip>
+  **Golden Rule:** Be specific about actions, but let the agent figure out the details of how to execute them.
+</Tip>
+
+## Prompting Principles
+
+### 1. Be Specific vs Open-Ended
+
+<CodeGroup>
+```python Good - Specific
+agent = Agent(
+    task="""
+    1. Go to https://quotes.toscrape.com/
+    2. Use extract action with query "first 3 quotes with their authors"
+    3. Save results to quotes.csv using write_file action
+    4. Search Google for the first quote's author
+    """,
+    llm=ChatBrowserUse(),
+)
+```
+
+```python Bad - Too Open-Ended
+agent = Agent(
+    task="Go to web and find some quotes",
+    llm=ChatBrowserUse(),
+)
+```
+</CodeGroup>
+
+**Why it matters:**
+- Specific tasks reduce ambiguity
+- Agent makes fewer wrong decisions
+- Faster execution with fewer retries
+- More predictable results
+
+### 2. Reference Actions by Name
+
+When you know what action to use, name it explicitly:
+
+```python
+agent = Agent(
+    task="""
+    1. Use search action to find "Python tutorials" on Google
+    2. Use click action to open first result in new tab
+    3. Use scroll action to scroll down 2 pages
+    4. Use extract action to get the main headings
+    5. Use send_keys action with "Tab Tab Enter" if needed
+    """,
+    llm=ChatBrowserUse(),
+)
+```
+
+See [Available Tools](/customize/tools/available) for the complete list.
+
+### 3. Structure Multi-Step Tasks
+
+Break complex tasks into numbered steps:
+
+<CodeGroup>
+```python Good - Structured Steps
+task="""
+1. Navigate to example.com/products
+2. Filter by category "Electronics"
+3. Sort by price (low to high)
+4. Extract the first 10 products with:
+   - Product name
+   - Price
+   - Rating
+   - URL
+5. Save to products.csv
+"""
+```
+
+```python Bad - Unstructured
+task="Get electronics products from example.com sorted by price and save them"
+```
+</CodeGroup>
+
+## Action-Specific Prompting
+
+### Navigation
+
+```python
+# Explicit URL navigation
+task="Navigate to https://news.ycombinator.com"
+
+# Search-based navigation
+task="Use search action to search DuckDuckGo for 'browser automation'"
+
+# Multi-tab workflow
+task="""
+1. Navigate to github.com in new tab
+2. Navigate to reddit.com in new tab
+3. Switch to the reddit tab
+4. Search for 'programming'
+"""
+```
+
+### Form Interaction
+
+```python
+# Detailed form filling
+task="""
+1. Find the email input field and enter 'user@example.com'
+2. Find the password field and enter password
+3. Click the 'Sign In' button
+4. Wait 2 seconds for page to load
+"""
+
+# With error recovery
+task="""
+1. Fill in username field with 'myuser'
+2. Fill in password field with password
+3. Click submit button
+4. If error message appears, read it and try again
+5. If successful, confirm you see the dashboard
+"""
+```
+
+### Data Extraction
+
+```python
+# Structured extraction
+task="""
+1. Go to news.ycombinator.com
+2. Use extract action with query:
+   "Get the top 5 posts with:
+   - Post title
+   - Number of points
+   - Number of comments
+   - Post URL (set extract_links=True)"
+"""
+
+# Paginated extraction
+task="""
+1. Go to products page
+2. Extract all products on current page
+3. Click 'Next' button if it exists
+4. Repeat steps 2-3 until no more pages
+5. Combine all results
+"""
+```
+
+### Scrolling
+
+```python
+# Page scrolling
+task="""
+1. Go to long article page
+2. Use scroll action with down=True and pages=3
+3. Extract visible content
+"""
+
+# Element scrolling
+task="""
+1. Find the comments section
+2. Use scroll action on that element to load more comments
+3. Repeat 5 times
+"""
+
+# Infinite scroll
+task="""
+1. Scroll down 10 pages to load content
+2. Wait 1 second between scrolls
+3. Extract all loaded items
+"""
+```
+
+## Error Recovery Patterns
+
+### Graceful Degradation
+
+```python
+task="""
+1. Try to navigate to example.com/api/data
+2. If page not found (404), go to example.com/products instead
+3. If that also fails, use search action to find the products page
+4. Extract data from whichever page loads successfully
+"""
+```
+
+### Retry Logic
+
+```python
+task="""
+1. Try to click the submit button
+2. If it doesn't work, wait 2 seconds and try again
+3. If still failing, use send_keys action with "Enter" instead
+4. Verify submission was successful
+"""
+```
+
+### Anti-Bot Detection
+
+```python
+task="""
+1. Navigate to protected-site.com
+2. If you see a CAPTCHA or anti-bot message:
+   - Wait 5 seconds
+   - Try refreshing the page
+3. If still blocked, report the issue
+"""
+```
+
+<Tip>
+  For production, use [cloud browsers](/guides/production) with automatic captcha bypass.
+</Tip>
+
+## Custom Actions Integration
+
+When you have custom tools, be explicit about when to use them:
+
+```python
+from browser_use import Tools, ActionResult
+
+tools = Tools()
+
+@tools.action('Get approval from human before making changes')
+async def get_approval(action: str) -> ActionResult:
+    response = input(f"Approve '{action}'? (yes/no) > ")
+    if response.lower() == 'yes':
+        return ActionResult(extracted_content="Approved")
+    return ActionResult(error="Rejected", is_done=True)
+
+agent = Agent(
+    task="""
+    IMPORTANT RULES:
+    1. Before editing ANY data, ALWAYS use get_approval action
+    2. NEVER make changes without approval
+    3. If approval is denied, stop immediately
+    
+    Task:
+    1. Go to admin panel
+    2. Find the user settings
+    3. Get approval to update user role
+    4. Only if approved, change role to 'admin'
+    """,
+    llm=ChatBrowserUse(),
+    tools=tools,
+)
+```
+
+### 2FA Custom Tools
+
+```python
+@tools.action('Generate 2FA code')
+async def get_2fa() -> ActionResult:
+    # Your 2FA logic
+    pass
+
+task="""
+1. Login with username and password
+2. When prompted for 2FA:
+   - ALWAYS use get_2fa action
+   - NEVER try to read codes from the page
+   - NEVER make up codes
+3. Enter the generated code
+"""
+```
+
+## Keyboard Navigation Workarounds
+
+Sometimes clicks fail. Use keyboard as backup:
+
+```python
+task="""
+1. Try to click the submit button
+2. If click fails:
+   - Use send_keys action with "Tab Tab Enter" to navigate and submit
+   - OR use send_keys with "ArrowDown ArrowDown Enter" for dropdowns
+3. Verify the form was submitted
+"""
+```
+
+**Common keyboard shortcuts:**
+- `"Enter"` - Submit forms
+- `"Escape"` - Close modals
+- `"Tab"` - Navigate between fields
+- `"ArrowDown"` / `"ArrowUp"` - Navigate lists
+- `"Space"` - Toggle checkboxes
+
+## Vision-Based Tasks
+
+```python
+# Explicit vision request
+agent = Agent(
+    task="""
+    1. Go to design.com
+    2. Use screenshot action to capture the page
+    3. Analyze the layout and color scheme in the screenshot
+    4. Describe the visual design elements
+    """,
+    llm=ChatBrowserUse(),
+    use_vision=True,
+)
+
+# Visual verification
+task="""
+1. Fill out the form
+2. Take a screenshot
+3. Verify all fields are filled correctly by examining the screenshot
+4. If any field is wrong, correct it
+5. Submit the form
+"""
+```
+
+## Conditional Logic
+
+```python
+task="""
+1. Go to e-commerce site
+2. Search for "laptop"
+3. If results show "No products found":
+   - Try searching for "notebook" instead
+4. If results found:
+   - Extract first 5 products
+5. If price is over $1000:
+   - Look for discount codes
+6. Otherwise:
+   - Proceed to checkout
+"""
+```
+
+## Domain-Specific Prompting
+
+### E-commerce
+
+```python
+task="""
+Shopping task:
+1. Go to shop.com
+2. Search for "wireless headphones"
+3. Filter by:
+   - Price: $50-$150
+   - Rating: 4+ stars
+   - Free shipping
+4. Sort by "Best selling"
+5. Extract top 5 results with:
+   - Product name
+   - Current price
+   - Original price
+   - Discount percentage
+   - Rating
+   - Number of reviews
+   - Product URL
+"""
+```
+
+### Research & Data Collection
+
+```python
+task="""
+Research task:
+1. Go to research-site.com
+2. Search for papers about "machine learning"
+3. Filter by:
+   - Year: 2023-2024
+   - Peer-reviewed only
+4. For each of the first 10 results:
+   - Extract title, authors, abstract, publication date
+   - Download PDF if available
+5. Save all data to research_papers.csv
+"""
+```
+
+### Social Media
+
+```python
+task="""
+Social media monitoring:
+1. Go to twitter.com (must be logged in)
+2. Search for "#browser-automation"
+3. Filter by "Latest" tweets
+4. Scroll down to load 50 tweets
+5. Extract:
+   - Tweet text
+   - Author username
+   - Timestamp
+   - Likes count
+   - Retweets count
+6. Save to tweets.json
+"""
+```
+
+## Performance Optimization
+
+### Fast Mode Tasks
+
+```python
+agent = Agent(
+    task="""
+    Quick task - extract headlines from news site.
+    Speed is priority over perfect accuracy.
+    """,
+    llm=ChatBrowserUse(),
+    flash_mode=True,  # 2-3x faster
+)
+```
+
+### Zero-Cost Operations
+
+```python
+# Use search_page instead of extract
+task="""
+1. Go to documentation page
+2. Use search_page action with pattern='API key' to find all mentions
+3. Report the count and locations
+"""
+
+# Use find_elements instead of extract
+task="""
+1. Go to products page
+2. Use find_elements with selector='.product-card' 
+3. Use find_elements again with attributes=['href'] to get all links
+4. Report total product count
+"""
+```
+
+## Common Pitfalls
+
+### Don't Over-Specify Implementation
+
+<CodeGroup>
+```python Good - Describe What
+task="""
+1. Login to the website
+2. Navigate to settings
+3. Change notification preferences
+"""
+```
+
+```python Bad - Over-Specify How
+task="""
+1. Click the element with ID 'login-button'
+2. Type into input field at coordinates (100, 200)
+3. Press Enter key
+4. Wait for redirect
+5. Find element with class 'settings-link'
+...
+"""
+```
+</CodeGroup>
+
+### Don't Assume Element Details
+
+<CodeGroup>
+```python Good
+task="Find and click the submit button"
+```
+
+```python Bad
+task="Click the blue button in the top right corner"
+# What if design changes? What if button is green?
+```
+</CodeGroup>
+
+### Don't Mix Instructions and Task
+
+<CodeGroup>
+```python Good
+extend_system_message="ALWAYS ask for approval before making purchases"
+
+agent = Agent(
+    task="Buy laptop from store",
+    llm=ChatBrowserUse(),
+    extend_system_message=extend_system_message,
+)
+```
+
+```python Bad
+task="""
+You are a helpful assistant. Always be careful.
+Also make sure to check everything twice.
+
+Task: Buy laptop from store
+"""
+```
+</CodeGroup>
+
+## Testing and Iteration
+
+### Start Simple
+
+```python
+# Step 1: Test basic navigation
+agent = Agent(
+    task="Go to example.com and tell me the page title",
+    llm=ChatBrowserUse(),
+)
+
+# Step 2: Add interaction
+agent = Agent(
+    task="Go to example.com, click 'About', tell me what you see",
+    llm=ChatBrowserUse(),
+)
+
+# Step 3: Add extraction
+agent = Agent(
+    task="""
+    1. Go to example.com
+    2. Click 'About'
+    3. Extract the company description and contact email
+    """,
+    llm=ChatBrowserUse(),
+)
+```
+
+### Add Error Handling Progressively
+
+```python
+# Initial version
+task="Login and extract data"
+
+# After testing, add error handling
+task="""
+1. Login (if fails, try refreshing and retry)
+2. Navigate to data page (if 404, search for it instead)
+3. Extract data (if page empty, wait 5 seconds and retry)
+"""
+```
+
+## Advanced Patterns
+
+### State Management
+
+```python
+task="""
+Multi-step workflow with state tracking:
+
+1. Phase 1 - Authentication:
+   - Login to site
+   - Verify successful login
+   - Remember you are now authenticated
+
+2. Phase 2 - Data Collection:
+   - Go to each of these pages: /page1, /page2, /page3
+   - Extract data from each
+   - Keep track of which pages you've visited
+
+3. Phase 3 - Cleanup:
+   - Logout
+   - Confirm logout successful
+"""
+```
+
+### Dynamic Task Generation
+
+```python
+import asyncio
+
+urls = ['site1.com', 'site2.com', 'site3.com']
+
+for url in urls:
+    agent = Agent(
+        task=f"""
+        1. Go to {url}
+        2. Extract contact email
+        3. Save to contacts.csv
+        """,
+        llm=ChatBrowserUse(),
+    )
+    await agent.run()
+```
+
+### Chained Agents
+
+```python
+# Agent 1: Research
+agent1 = Agent(
+    task="Find top 10 AI companies and save their URLs to companies.json",
+    llm=ChatBrowserUse(),
+)
+result1 = await agent1.run()
+
+# Agent 2: Analysis (uses results from agent1)
+import json
+with open('companies.json') as f:
+    companies = json.load(f)
+
+agent2 = Agent(
+    task=f"""
+    Visit each of these companies and extract:
+    - Founded year
+    - Number of employees
+    - Main product
+    
+    Companies: {companies}
+    """,
+    llm=ChatBrowserUse(),
+)
+result2 = await agent2.run()
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Available Tools" icon="list" href="/customize/tools/available">
+    Reference all available actions
+  </Card>
+  <Card title="Custom Tools" icon="wrench" href="/guides/custom-tools">
+    Build specialized actions
+  </Card>
+  <Card title="System Prompts" icon="file" href="https://github.com/browser-use/browser-use/blob/main/examples/features/custom_system_prompt.py">
+    Customize agent behavior
+  </Card>
+  <Card title="Examples" icon="code" href="https://github.com/browser-use/browser-use/tree/main/examples">
+    See more examples
+  </Card>
+</CardGroup>

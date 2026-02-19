@@ -1,0 +1,288 @@
+---
+title: 'ActionResult'
+description: 'Result type for tool execution and task completion'
+---
+
+The `ActionResult` class represents the result of executing an action (tool). It provides structured output, error handling, and metadata for agent communication.
+
+## Constructor
+
+```python
+from browser_use import ActionResult
+
+result = ActionResult(
+    extracted_content="Found 10 products",
+    long_term_memory="Searched for laptops on Amazon",
+)
+```
+
+### Parameters
+
+<ParamField path="extracted_content" type="str | None">
+  Main content to show to the agent. This is the primary output of the action.
+</ParamField>
+
+<ParamField path="long_term_memory" type="str | None">
+  Compact memory for long-term context. Used to summarize the action for future reference.
+</ParamField>
+
+<ParamField path="error" type="str | None">
+  Error message if something went wrong. When set, this indicates the action failed.
+</ParamField>
+
+<ParamField path="is_done" type="bool" default="False">
+  Whether the task is complete. Only used for the `done` action.
+</ParamField>
+
+<ParamField path="success" type="bool | None">
+  Whether the task completed successfully. Can only be set when `is_done=True`.
+</ParamField>
+
+<ParamField path="attachments" type="list[str] | None">
+  List of file paths to display in the completion message.
+</ParamField>
+
+<ParamField path="images" type="list[dict[str, Any]] | None">
+  List of images (base64 encoded). Format: `[{"name": "file.jpg", "data": "base64_string"}]`
+</ParamField>
+
+<ParamField path="metadata" type="dict | None">
+  Additional metadata for observability (e.g., click coordinates, duration, API calls).
+</ParamField>
+
+<ParamField path="judgement" type="JudgementResult | None">
+  Judge evaluation result (populated by judge system).
+</ParamField>
+
+<ParamField path="include_extracted_content_only_once" type="bool" default="False">
+  If `True`, extracted content is only added to context once (for next step) and not stored in long-term memory.
+</ParamField>
+
+<ParamField path="include_in_memory" type="bool" default="False">
+  **Deprecated:** Whether to include extracted content in long-term memory.
+</ParamField>
+
+## Return Formats
+
+Tools can return `ActionResult` or simple strings:
+
+### Structured Return (Recommended)
+
+```python
+@tools.action('Extract product info')
+async def extract_product() -> ActionResult:
+    return ActionResult(
+        extracted_content="Product: Laptop, Price: $999",
+        long_term_memory="Found laptop pricing",
+        metadata={"product_id": "123"},
+    )
+```
+
+### Simple String Return
+
+```python
+@tools.action('Simple action')
+async def simple_action() -> str:
+    return "Task completed"
+```
+
+## Usage Examples
+
+### Success Result
+
+```python
+result = ActionResult(
+    extracted_content="Successfully uploaded 5 files",
+    long_term_memory="Uploaded reports to server",
+    attachments=[
+        "/path/to/report1.pdf",
+        "/path/to/report2.pdf",
+    ],
+)
+```
+
+### Error Result
+
+```python
+result = ActionResult(
+    error="Failed to connect to API: Connection timeout",
+)
+```
+
+### Task Completion (Done)
+
+```python
+result = ActionResult(
+    is_done=True,
+    success=True,
+    extracted_content="Task completed: Found 25 articles and saved to research.txt",
+    attachments=["research.txt"],
+)
+```
+
+### With Images
+
+```python
+import base64
+
+with open("screenshot.png", "rb") as f:
+    image_data = base64.b64encode(f.read()).decode()
+
+result = ActionResult(
+    extracted_content="Screenshot captured",
+    images=[
+        {"name": "screenshot.png", "data": image_data}
+    ],
+)
+```
+
+### With Metadata
+
+```python
+result = ActionResult(
+    extracted_content="Clicked button at (100, 200)",
+    metadata={
+        "click_x": 100,
+        "click_y": 200,
+        "element_type": "button",
+        "duration_ms": 45,
+    },
+)
+```
+
+### Extraction with Read-Once Content
+
+```python
+# Large extracted content that should only be in context once
+result = ActionResult(
+    extracted_content=long_json_data,  # Sent to agent once
+    long_term_memory="Extracted product catalog (500 items)",  # Compact memory
+    include_extracted_content_only_once=True,  # Don't store full content
+)
+```
+
+## Best Practices
+
+### 1. Always Provide Extracted Content
+
+```python
+# ✅ Good
+ActionResult(
+    extracted_content="Found 5 results",
+)
+
+# ❌ Bad
+ActionResult()  # No information for the agent
+```
+
+### 2. Use Long-Term Memory for Summaries
+
+```python
+# ✅ Good - Compact memory
+ActionResult(
+    extracted_content="<100 lines of detailed data>",
+    long_term_memory="Extracted customer data",
+)
+
+# ❌ Bad - Full data in memory
+ActionResult(
+    extracted_content="<100 lines of detailed data>",
+    # No long_term_memory - full content stored
+)
+```
+
+### 3. Clear Error Messages
+
+```python
+# ✅ Good - Actionable error
+ActionResult(
+    error="File not found: /path/to/data.csv. Available files: [list.txt, report.pdf]",
+)
+
+# ❌ Bad - Generic error
+ActionResult(
+    error="Error occurred",
+)
+```
+
+### 4. Success Flag Only With is_done
+
+```python
+# ✅ Good
+ActionResult(
+    is_done=True,
+    success=True,
+    extracted_content="Task completed",
+)
+
+# ❌ Bad - Raises ValidationError
+try:
+    ActionResult(
+        success=True,  # is_done not set
+        extracted_content="Step completed",
+    )
+except ValueError as e:
+    print(e)  # success=True requires is_done=True
+```
+
+### 5. Include Attachments for Files
+
+```python
+# ✅ Good - Files visible to user
+ActionResult(
+    extracted_content="Report generated",
+    attachments=["/path/to/report.pdf"],
+)
+
+# ❌ Bad - User doesn't know where file is
+ActionResult(
+    extracted_content="Report generated",
+)
+```
+
+## Properties
+
+All ActionResult fields are accessible as properties:
+
+```python
+result = ActionResult(
+    extracted_content="Data found",
+    long_term_memory="Searched database",
+)
+
+print(result.extracted_content)  # "Data found"
+print(result.long_term_memory)   # "Searched database"
+print(result.error)               # None
+print(result.is_done)             # False
+```
+
+## Related Types
+
+### JudgementResult
+
+Used for judge evaluation:
+
+```python
+from browser_use.agent.views import JudgementResult
+
+judgement = JudgementResult(
+    reasoning="Task requirements met",
+    verdict=True,
+    failure_reason=None,
+    impossible_task=False,
+    reached_captcha=False,
+)
+
+result = ActionResult(
+    is_done=True,
+    success=True,
+    extracted_content="Task completed",
+    judgement=judgement,
+)
+```
+
+## See Also
+
+- [Tools Basics](https://docs.browser-use.com/customize/tools/basics)
+- [Tool Response](https://docs.browser-use.com/customize/tools/response)
+- [Agent Output Format](https://docs.browser-use.com/customize/agent/output)

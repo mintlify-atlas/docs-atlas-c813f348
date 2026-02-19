@@ -1,0 +1,365 @@
+---
+title: 'Tools'
+description: 'Tools registry for browser actions and custom functions'
+---
+
+The `Tools` class is a registry that manages all actions (tools) available to the agent. It includes built-in browser actions and supports custom tool registration.
+
+## Constructor
+
+```python
+from browser_use import Tools
+
+tools = Tools(
+    exclude_actions=['search', 'wait'],
+    output_model=MyCustomOutput,
+)
+```
+
+### Parameters
+
+<ParamField path="exclude_actions" type="list[str] | None">
+  List of default action names to exclude from the registry. Examples: `['search', 'wait', 'screenshot']`
+</ParamField>
+
+<ParamField path="output_model" type="type[BaseModel] | None">
+  Pydantic model class for structured output. Used for the `done` action.
+</ParamField>
+
+<ParamField path="display_files_in_done_text" type="bool" default="True">
+  Show file information in task completion messages.
+</ParamField>
+
+## Methods
+
+### action() Decorator
+
+Register a custom action (tool) that the agent can call.
+
+```python
+from browser_use import Tools, ActionResult
+
+tools = Tools()
+
+@tools.action('Ask human for help with a question')
+async def ask_human(question: str) -> ActionResult:
+    answer = input(f'{question} > ')
+    return ActionResult(extracted_content=f'Human: {answer}')
+```
+
+<ParamField path="description" type="str" required>
+  Description of what the tool does. The LLM uses this to decide when to call it.
+</ParamField>
+
+<ParamField path="param_model" type="type[BaseModel]">
+  Pydantic model defining the tool's parameters. Auto-generated from function signature if not provided.
+</ParamField>
+
+<ParamField path="allowed_domains" type="list[str]">
+  List of domains where tool can run. Format: `['*.example.com']`. Defaults to all domains.
+</ParamField>
+
+<ParamField path="terminates_sequence" type="bool" default="False">
+  If `True`, this action terminates the current action sequence.
+</ParamField>
+
+### exclude_action()
+
+Exclude a specific action from the registry.
+
+```python
+tools.exclude_action('screenshot')
+```
+
+<ParamField path="action_name" type="str" required>
+  Name of the action to exclude.
+</ParamField>
+
+### set_coordinate_clicking()
+
+Enable or disable coordinate-based clicking.
+
+```python
+tools.set_coordinate_clicking(enabled=True)
+```
+
+<ParamField path="enabled" type="bool" required>
+  Whether to enable coordinate clicking.
+</ParamField>
+
+### get_output_model()
+
+Get the output model schema if configured.
+
+```python
+model = tools.get_output_model()
+```
+
+<ResponseField name="return" type="type[BaseModel] | None">
+  Output model class, or `None` if not configured.
+</ResponseField>
+
+### use_structured_output_action()
+
+Register a structured output action with a specific schema.
+
+```python
+tools.use_structured_output_action(MyOutputModel)
+```
+
+<ParamField path="output_model" type="type[BaseModel]" required>
+  Pydantic model class for structured output.
+</ParamField>
+
+## Properties
+
+### registry
+
+<ResponseField name="registry" type="Registry[Context]">
+  The underlying action registry that stores all registered tools.
+</ResponseField>
+
+## Built-in Actions
+
+### Navigation & Browser Control
+
+- **search** - Search queries (DuckDuckGo, Google, Bing)
+- **navigate** - Navigate to URLs
+- **go_back** - Go back in browser history
+- **wait** - Wait for specified seconds
+
+### Page Interaction
+
+- **click** - Click elements by their index
+- **input** - Input text into form fields
+- **upload_file** - Upload files to file inputs
+- **scroll** - Scroll the page up/down
+- **find_text** - Scroll to specific text on page
+- **send_keys** - Send special keys (Enter, Escape, etc.)
+
+### JavaScript Execution
+
+- **evaluate** - Execute custom JavaScript code on the page
+
+### Tab Management
+
+- **switch** - Switch between browser tabs
+- **close** - Close browser tabs
+
+### Content Extraction
+
+- **extract** - Extract data from webpages using LLM
+- **search_page** - Search page text for patterns (zero LLM cost)
+- **find_elements** - Query DOM elements by CSS selector (zero LLM cost)
+
+### Visual Analysis
+
+- **screenshot** - Request a screenshot for visual confirmation
+
+### Form Controls
+
+- **dropdown_options** - Get dropdown option values
+- **select_dropdown** - Select dropdown options
+
+### File Operations
+
+- **write_file** - Write content to files
+- **read_file** - Read file contents
+- **replace_file** - Replace text in files
+
+### Task Completion
+
+- **done** - Complete the task (always available)
+
+## Custom Tool Parameters
+
+Tools can access special parameters by name:
+
+<ParamField path="browser_session" type="BrowserSession">
+  The current browser session for deterministic Actor actions.
+</ParamField>
+
+<ParamField path="available_file_paths" type="list[str]">
+  List of file paths available to the agent.
+</ParamField>
+
+<ParamField path="file_system" type="FileSystem">
+  Agent's file system instance.
+</ParamField>
+
+<ParamField path="page_extraction_llm" type="BaseChatModel">
+  LLM for page content extraction.
+</ParamField>
+
+<ParamField path="has_sensitive_data" type="bool">
+  Whether sensitive data is configured.
+</ParamField>
+
+<ParamField path="sensitive_data" type="dict[str, str | dict[str, str]]">
+  Dictionary of sensitive data.
+</ParamField>
+
+<ParamField path="extraction_schema" type="dict | None">
+  Schema for structured extraction.
+</ParamField>
+
+<Warning>
+  **Parameter names must match exactly!** The agent injects parameters by name matching. Using `browser: Browser` instead of `browser_session: BrowserSession` will cause your tool to fail silently.
+</Warning>
+
+## Example Usage
+
+### Basic Custom Tool
+
+```python
+from browser_use import Tools, ActionResult, Agent
+
+tools = Tools()
+
+@tools.action('Get current time')
+async def get_time() -> str:
+    from datetime import datetime
+    return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+agent = Agent(
+    task="What time is it?",
+    llm=llm,
+    tools=tools,
+)
+```
+
+### Tool with Browser Access
+
+```python
+from browser_use import Tools, ActionResult, BrowserSession
+
+tools = Tools()
+
+@tools.action('Take a full-page screenshot')
+async def fullpage_screenshot(browser_session: BrowserSession) -> ActionResult:
+    # Get current page
+    page = await browser_session.get_current_page()
+    
+    # Take screenshot
+    screenshot = await page.screenshot(full_page=True)
+    
+    return ActionResult(
+        extracted_content="Full-page screenshot captured",
+        images=[{"name": "fullpage.png", "data": screenshot}]
+    )
+```
+
+### Tool with Parameters
+
+```python
+from pydantic import BaseModel, Field
+from browser_use import Tools, ActionResult
+
+class EmailParams(BaseModel):
+    to: str = Field(description="Recipient email address")
+    subject: str = Field(description="Email subject")
+    body: str = Field(description="Email body")
+
+tools = Tools()
+
+@tools.action(
+    description='Send an email',
+    param_model=EmailParams,
+)
+async def send_email(to: str, subject: str, body: str) -> ActionResult:
+    # Send email logic here
+    print(f"Sending email to {to}")
+    return ActionResult(
+        extracted_content=f"Email sent to {to}",
+        long_term_memory=f"Sent email with subject: {subject}"
+    )
+```
+
+### Tool with File Access
+
+```python
+from browser_use import Tools, ActionResult, FileSystem
+
+tools = Tools()
+
+@tools.action('Save research notes')
+async def save_notes(
+    content: str,
+    file_system: FileSystem,
+) -> ActionResult:
+    # Save to file system
+    file_path = file_system.write_file('notes.txt', content)
+    
+    return ActionResult(
+        extracted_content=f"Notes saved to {file_path}",
+        attachments=[file_path]
+    )
+```
+
+### Domain-Restricted Tool
+
+```python
+tools = Tools()
+
+@tools.action(
+    description='Extract product data from Amazon',
+    allowed_domains=['*.amazon.com', '*.amazon.co.uk'],
+)
+async def extract_amazon_product(browser_session: BrowserSession) -> ActionResult:
+    state = await browser_session.get_browser_state_summary()
+    
+    if 'amazon' not in state.url:
+        return ActionResult(error="This tool only works on Amazon")
+    
+    # Extract product data
+    # ...
+    return ActionResult(extracted_content="Product data extracted")
+```
+
+## ActionResult Response
+
+Tools should return `ActionResult` for structured responses:
+
+```python
+from browser_use import ActionResult
+
+result = ActionResult(
+    # Main content shown to agent
+    extracted_content="Task completed successfully",
+    
+    # Compact memory for long-term context
+    long_term_memory="Completed XYZ task",
+    
+    # Error message if something went wrong
+    error="Failed to connect to API",
+    
+    # Files to display in done message
+    attachments=["output.pdf", "results.json"],
+    
+    # Images (base64 encoded)
+    images=[{"name": "screenshot.png", "data": "base64..."}],
+    
+    # Task completion flags (only for done action)
+    is_done=True,
+    success=True,
+    
+    # Metadata for observability
+    metadata={"duration_ms": 1234, "api_calls": 3},
+)
+```
+
+Or return a simple string:
+
+```python
+@tools.action('Simple tool')
+async def simple_tool() -> str:
+    return "Task completed"
+```
+
+## See Also
+
+- [Tools Basics](https://docs.browser-use.com/customize/tools/basics)
+- [Add Tools](https://docs.browser-use.com/customize/tools/add)
+- [Available Tools](https://docs.browser-use.com/customize/tools/available)
+- [Remove Tools](https://docs.browser-use.com/customize/tools/remove)
+- [Tool Response](https://docs.browser-use.com/customize/tools/response)

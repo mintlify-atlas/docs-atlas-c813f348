@@ -1,0 +1,299 @@
+---
+title: "Agent Settings"
+description: "Configuration options for customizing agent behavior and capabilities"
+icon: "robot"
+mode: "wide"
+---
+
+The `AgentSettings` class controls how the agent thinks, plans, and executes tasks.
+
+## Vision & Processing
+
+### use_vision
+
+<ParamField path="use_vision" type="bool | 'auto'" default="True">
+  Controls vision mode for screenshots:
+  - `"auto"` - Includes screenshot tool but only uses vision when explicitly requested
+  - `True` - Always includes screenshots in LLM context
+  - `False` - Never includes screenshots and excludes screenshot tool
+</ParamField>
+
+### vision_detail_level
+
+<ParamField path="vision_detail_level" type="'auto' | 'low' | 'high'" default="auto">
+  Screenshot detail level for LLM vision models:
+  - `"auto"` - Let the LLM provider choose optimal detail
+  - `"low"` - Faster, lower cost, reduced detail
+  - `"high"` - Slower, higher cost, maximum detail
+</ParamField>
+
+### page_extraction_llm
+
+<ParamField path="page_extraction_llm" type="BaseChatModel">
+  Separate LLM model for page content extraction.
+  
+  You can use a smaller, faster model since it only needs to extract text from pages.
+  
+  **Default:** Same as main `llm` parameter
+</ParamField>
+
+---
+
+## Actions & Behavior
+
+### max_actions_per_step
+
+<ParamField path="max_actions_per_step" type="int" default="5">
+  Maximum actions the agent can execute in a single step.
+  
+  For example, for form filling the agent can output 3 fields at once. Actions are executed until the page changes.
+</ParamField>
+
+### max_failures
+
+<ParamField path="max_failures" type="int" default="5">
+  Maximum number of consecutive failures before the agent stops.
+  
+  Each step error increments the failure counter. Successful steps reset it to 0.
+</ParamField>
+
+### final_response_after_failure
+
+<ParamField path="final_response_after_failure" type="bool" default="True">
+  If `True`, attempts one final LLM call with intermediate output after `max_failures` is reached.
+  
+  This allows the agent to provide a summary even if the task couldn't be completed.
+</ParamField>
+
+---
+
+## Reasoning & Planning
+
+### use_thinking
+
+<ParamField path="use_thinking" type="bool" default="True">
+  Controls whether the agent uses its internal "thinking" field for explicit reasoning steps.
+  
+  When enabled, the agent outputs its thought process before choosing actions.
+</ParamField>
+
+### flash_mode
+
+<ParamField path="flash_mode" type="bool" default="False">
+  Fast mode that skips evaluation, next goal, and thinking - only uses memory.
+  
+  **Performance:** ~2x faster execution
+  
+  **Trade-off:** Reduced reasoning capability
+  
+  See [Fast Agent Example](https://github.com/browser-use/browser-use/blob/main/examples/getting_started/05_fast_agent.py)
+</ParamField>
+
+<Warning>
+  If `flash_mode` is enabled, it overrides `use_thinking` and disables the thinking process entirely.
+</Warning>
+
+### enable_planning
+
+<ParamField path="enable_planning" type="bool" default="True">
+  Enable the agent to create and follow multi-step plans for complex tasks.
+</ParamField>
+
+### planning_replan_on_stall
+
+<ParamField path="planning_replan_on_stall" type="int" default="3">
+  Number of consecutive failures before triggering a plan revision nudge.
+  
+  Set to `0` to disable.
+</ParamField>
+
+### planning_exploration_limit
+
+<ParamField path="planning_exploration_limit" type="int" default="5">
+  Number of steps without a plan before nudging the agent to create one.
+  
+  Set to `0` to disable.
+</ParamField>
+
+---
+
+## System Messages
+
+### override_system_message
+
+<ParamField path="override_system_message" type="string">
+  Completely replace the default system prompt with a custom one.
+  
+  **Use with caution:** This removes all default instructions.
+</ParamField>
+
+### extend_system_message
+
+<ParamField path="extend_system_message" type="string">
+  Add additional instructions to the default system prompt.
+  
+  See [Custom System Prompt Example](https://github.com/browser-use/browser-use/blob/main/examples/features/custom_system_prompt.py)
+</ParamField>
+
+---
+
+## History & Memory
+
+### max_history_items
+
+<ParamField path="max_history_items" type="int">
+  Maximum number of last steps to keep in LLM memory.
+  
+  **Default:** `None` (keeps all steps)
+  
+  Useful for limiting context size on very long tasks.
+</ParamField>
+
+### message_compaction
+
+<ParamField path="message_compaction" type="MessageCompactionSettings">
+  Settings for summarizing older history into a compact memory block.
+  
+  **Fields:**
+  - `enabled` (bool): Enable compaction
+  - `compact_every_n_steps` (int): Compact every N steps
+  - `trigger_char_count` (int): Minimum characters before compaction
+  - `keep_last_items` (int): Recent items to keep uncompacted
+  - `summary_max_chars` (int): Maximum summary size
+</ParamField>
+
+---
+
+## Loop Detection
+
+### loop_detection_enabled
+
+<ParamField path="loop_detection_enabled" type="bool" default="True">
+  Enable detection of repetitive actions and nudges to the agent.
+</ParamField>
+
+### loop_detection_window
+
+<ParamField path="loop_detection_window" type="int" default="20">
+  Rolling window size for tracking action similarity.
+</ParamField>
+
+---
+
+## Validation & Judging
+
+### use_judge
+
+<ParamField path="use_judge" type="bool" default="True">
+  Enable lightweight validation of agent success claims.
+  
+  The judge validates that the agent's response genuinely satisfies the task requirements.
+</ParamField>
+
+### ground_truth
+
+<ParamField path="ground_truth" type="string">
+  Ground truth answer or criteria for judge validation.
+  
+  When provided, the judge compares the agent's output against this ground truth.
+</ParamField>
+
+---
+
+## File & Data Management
+
+### save_conversation_path
+
+<ParamField path="save_conversation_path" type="string | Path">
+  Path to save complete conversation history as JSON.
+</ParamField>
+
+### save_conversation_path_encoding
+
+<ParamField path="save_conversation_path_encoding" type="string" default="utf-8">
+  Text encoding for saved conversation files.
+</ParamField>
+
+### generate_gif
+
+<ParamField path="generate_gif" type="bool | string" default="False">
+  Generate an animated GIF of agent actions.
+  
+  - `True` - Save to default location
+  - `string` - Save to specified path
+  - `False` - Disable
+</ParamField>
+
+### include_attributes
+
+<ParamField path="include_attributes" type="list[string]">
+  List of HTML attributes to include in page analysis.
+  
+  **Default:** Common attributes like `id`, `class`, `href`, `type`, etc.
+</ParamField>
+
+---
+
+## Performance & Limits
+
+### llm_timeout
+
+<ParamField path="llm_timeout" type="int" default="60">
+  Timeout in seconds for LLM API calls.
+  
+  **Auto-detected values:**
+  - 30s for Gemini models
+  - 90s for o3 models
+  - 60s default
+</ParamField>
+
+### step_timeout
+
+<ParamField path="step_timeout" type="int" default="180">
+  Timeout in seconds for each agent step (including actions and LLM calls).
+</ParamField>
+
+### calculate_cost
+
+<ParamField path="calculate_cost" type="bool" default="False">
+  Track and calculate API costs for LLM calls.
+</ParamField>
+
+### max_clickable_elements_length
+
+<ParamField path="max_clickable_elements_length" type="int" default="40000">
+  Maximum characters for clickable elements in the prompt.
+</ParamField>
+
+---
+
+## Example
+
+```python
+from browser_use import Agent, AgentSettings, ChatBrowserUse, Browser
+
+agent = Agent(
+    task="Research and summarize AI trends",
+    llm=ChatBrowserUse(),
+    browser=Browser(),
+    # Pass custom settings
+    flash_mode=True,
+    max_actions_per_step=3,
+    use_vision='auto',
+    max_failures=10,
+    extend_system_message="Focus on recent developments from 2024"
+)
+
+await agent.run()
+```
+
+<Note>
+  Most settings can be passed directly to the `Agent` constructor as keyword arguments.
+</Note>
+
+---
+
+## Related Configuration
+
+- [Browser Settings](/api/config/browser-settings) - Configure browser behavior
+- [Sandbox Settings](/api/config/sandbox-settings) - Configure cloud execution

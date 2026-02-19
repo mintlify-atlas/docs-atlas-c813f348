@@ -1,0 +1,246 @@
+---
+title: "Extraction Actions"
+description: "Actions for extracting data and taking screenshots from web pages"
+icon: "download"
+mode: "wide"
+---
+
+Extraction actions retrieve information from web pages using LLM-powered extraction or visual snapshots.
+
+## extract
+
+Use an LLM to extract structured or free-text data from the current page's markdown content.
+
+<ParamField path="query" type="string" required>
+  Description of what data to extract from the page
+</ParamField>
+
+<ParamField path="extract_links" type="bool" default="False">
+  Set to `True` if the query requires URLs/links, `False` to save tokens
+</ParamField>
+
+<ParamField path="start_from_char" type="int" default="0">
+  Character position to start extraction from. Use this for long pages when previous extraction was truncated.
+  
+  **Note:** This is a character offset in the markdown content, NOT an element index from browser_state.
+</ParamField>
+
+<ParamField path="output_schema" type="dict">
+  Optional JSON Schema dictionary. When provided, extraction returns validated JSON matching this schema instead of free-text.
+  
+  See [Structured Output Example](https://github.com/browser-use/browser-use/blob/main/examples/features/custom_output.py)
+</ParamField>
+
+### Free-text Extraction Example
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+agent = Agent(
+    task="Go to quotes.toscrape.com and extract the first 3 quotes with their authors",
+    llm=ChatBrowserUse(),
+    browser=Browser()
+)
+
+history = await agent.run()
+print(history.final_result())
+```
+
+### Structured Extraction Example
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+from pydantic import BaseModel
+
+class Quote(BaseModel):
+    text: str
+    author: str
+
+class QuotesOutput(BaseModel):
+    quotes: list[Quote]
+
+agent = Agent(
+    task="Extract the first 5 quotes from quotes.toscrape.com",
+    llm=ChatBrowserUse(),
+    browser=Browser(),
+    output_model_schema=QuotesOutput
+)
+
+history = await agent.run()
+structured_data = history.structured_output
+print(structured_data.quotes)
+```
+
+<Note>
+  **When to use extract:**
+  - You're on the right page
+  - You know what data to extract
+  - You haven't called extract before on the same page for the same query
+  
+  **Limitations:**
+  - Cannot extract interactive elements (use browser_state for that)
+  - Large content may be truncated (use `start_from_char` to continue)
+</Note>
+
+<Warning>
+  The extracted content is converted to markdown before extraction, which filters out advertising and noise but removes some interactive elements.
+</Warning>
+
+**Implementation:** `browser_use.tools.service:951`
+
+---
+
+## screenshot
+
+Take a screenshot of the current viewport.
+
+<ParamField path="file_name" type="string">
+  Optional filename to save the screenshot. If provided, saves to file and returns the path. 
+  
+  If omitted, the screenshot will be included in the next browser_state observation.
+  
+  **Supported format:** PNG (`.png` extension added automatically)
+</ParamField>
+
+### Save to File Example
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+agent = Agent(
+    task="Go to example.com and save a screenshot as 'homepage.png'",
+    llm=ChatBrowserUse(),
+    browser=Browser()
+)
+
+await agent.run()
+```
+
+### Include in Observation Example
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+agent = Agent(
+    task="Go to example.com and take a screenshot to verify the page loaded",
+    llm=ChatBrowserUse(),
+    browser=Browser()
+)
+
+await agent.run()
+```
+
+<Tip>
+  Screenshots are useful for:
+  - Visual confirmation of page state
+  - Debugging issues
+  - Creating documentation
+  - Verifying forms filled correctly
+</Tip>
+
+**Implementation:** `browser_use.tools.service:1387`
+
+---
+
+## search_page
+
+Search page text for a pattern instantly with zero LLM cost (like grep).
+
+<ParamField path="pattern" type="string" required>
+  Text or regex pattern to search for in page content
+</ParamField>
+
+<ParamField path="regex" type="bool" default="False">
+  Treat pattern as regex (default: literal text match)
+</ParamField>
+
+<ParamField path="case_sensitive" type="bool" default="False">
+  Case-sensitive search (default: case-insensitive)
+</ParamField>
+
+<ParamField path="context_chars" type="int" default="150">
+  Characters of surrounding context per match
+</ParamField>
+
+<ParamField path="css_scope" type="string">
+  CSS selector to limit search scope (e.g., `"div#main"`)
+</ParamField>
+
+<ParamField path="max_results" type="int" default="25">
+  Maximum matches to return
+</ParamField>
+
+### Example
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+agent = Agent(
+    task='Go to wikipedia.org and search for "quantum" on the page',
+    llm=ChatBrowserUse(),
+    browser=Browser()
+)
+
+await agent.run()
+```
+
+<Note>
+  **Zero LLM cost** - This action executes JavaScript directly in the browser for instant results.
+</Note>
+
+**Implementation:** `browser_use.tools.service:1169`
+
+---
+
+## find_elements
+
+Query DOM elements by CSS selector instantly with zero LLM cost.
+
+<ParamField path="selector" type="string" required>
+  CSS selector to query elements (e.g., `"table tr"`, `"a.link"`, `"div.product"`)
+</ParamField>
+
+<ParamField path="attributes" type="list[string]">
+  Specific attributes to extract (e.g., `["href", "src", "class"]`). 
+  
+  If not set, returns tag and text only.
+</ParamField>
+
+<ParamField path="max_results" type="int" default="50">
+  Maximum elements to return
+</ParamField>
+
+<ParamField path="include_text" type="bool" default="True">
+  Include text content of each element
+</ParamField>
+
+### Example
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+agent = Agent(
+    task='Go to example.com and find all links with their href attributes',
+    llm=ChatBrowserUse(),
+    browser=Browser()
+)
+
+await agent.run()
+```
+
+<Tip>
+  Use `find_elements` to:
+  - Explore page structure
+  - Count items
+  - Get links/attributes
+  - Verify elements exist
+</Tip>
+
+**Implementation:** `browser_use.tools.service:1206`
+
+---
+
+## Related Actions
+
+- [Navigation Actions](/api/actions/navigation) - Navigate between pages
+- [Interaction Actions](/api/actions/interaction) - Interact with elements

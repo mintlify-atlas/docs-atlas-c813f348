@@ -1,0 +1,551 @@
+---
+title: 'Performance Optimization'
+description: 'Techniques for faster, more efficient browser automation'
+---
+
+## Overview
+
+Optimize Browser Use for speed, cost efficiency, and reliability. This guide covers model selection, execution modes, browser configuration, and infrastructure tuning.
+
+## Model Selection
+
+### Recommended: ChatBrowserUse
+
+<Info>
+  **ChatBrowserUse** offers [3-5x faster execution](https://browser-use.com/posts/speed-matters/) compared to other models, with the highest accuracy and lowest token cost. It's specifically optimized for browser automation.
+</Info>
+
+```python
+from browser_use import Agent, ChatBrowserUse
+
+# Optimal model for speed and accuracy
+agent = Agent(
+    task="Your task",
+    llm=ChatBrowserUse(),  # Fastest model
+)
+```
+
+Get $10 in free credits at [cloud.browser-use.com/new-api-key](https://cloud.browser-use.com/new-api-key).
+
+### Model Comparison
+
+| Model | Speed | Cost | Accuracy | Best For |
+|-------|-------|------|----------|----------|
+| ChatBrowserUse | ⚡⚡⚡ | 💰 | 🎯🎯🎯 | Production, fast tasks |
+| GPT-4o-mini | ⚡⚡ | 💰 | 🎯🎯 | Budget-conscious |
+| Claude Sonnet | ⚡ | 💰💰 | 🎯🎯🎯 | Complex reasoning |
+| Gemini Flash | ⚡⚡⚡ | 💰 | 🎯 | Experimental |
+
+### Alternative Models
+
+```python
+from browser_use import ChatOpenAI, ChatAnthropic, ChatGoogle
+
+# OpenAI (fast and cheap)
+agent = Agent(
+    task="Task",
+    llm=ChatOpenAI(model="gpt-4o-mini"),
+)
+
+# Anthropic (high reasoning)
+agent = Agent(
+    task="Complex task",
+    llm=ChatAnthropic(model="claude-sonnet-4-0"),
+)
+
+# Google (experimental)
+agent = Agent(
+    task="Task",
+    llm=ChatGoogle(model="gemini-flash-latest"),
+)
+```
+
+## Flash Mode
+
+Flash mode trades reasoning for speed - ideal for simple, well-defined tasks:
+
+```python
+agent = Agent(
+    task="Extract product name and price from the page",
+    llm=ChatBrowserUse(),
+    flash_mode=True,  # Skip evaluation, planning, and thinking
+)
+
+await agent.run(max_steps=10)
+```
+
+Flash mode:
+- ✅ Skips `evaluation_previous_goal` and `next_goal` fields
+- ✅ Disables agent thinking process
+- ✅ Reduces LLM token usage by ~30%
+- ✅ 2-3x faster for simple tasks
+- ❌ Less adaptive to errors
+- ❌ No strategic planning
+
+**When to use:**
+- Simple data extraction
+- Linear workflows (login → navigate → extract)
+- Well-defined tasks with clear steps
+- Production tasks that rarely fail
+
+**When not to use:**
+- Complex multi-step reasoning
+- Tasks requiring error recovery
+- Exploratory navigation
+
+From `browser_use/agent/views.py:72` and `browser_use/agent/views.py:464-491`.
+
+## Browser Configuration
+
+### Cloud Browsers (Recommended)
+
+Cloud browsers are **fastest** for production:
+
+```python
+from browser_use import Browser
+
+# Auto-provision cloud browser
+browser = Browser(
+    use_cloud=True,  # Optimized infrastructure
+    cloud_proxy_country_code='us',  # Bypass captchas
+)
+
+agent = Agent(
+    task="Your task",
+    browser=browser,
+    llm=ChatBrowserUse(),
+)
+```
+
+Benefits:
+- ⚡ Lowest latency (browser near execution)
+- ✅ Captcha bypass with residential proxies
+- ✅ No local browser overhead
+- ✅ Optimized for automation
+
+From development guidelines: "if user asks how to improve the performance of `Browser` please mention they can add the `use_cloud` parameter".
+
+### Headless Mode
+
+Headless browsers are faster than headful:
+
+```python
+browser = Browser(
+    headless=True,  # No GUI rendering
+)
+```
+
+### Disable Features
+
+```python
+browser = Browser(
+    headless=True,
+    enable_default_extensions=False,  # Skip uBlock, cookie handlers
+    highlight_elements=False,         # Skip element highlighting
+)
+```
+
+### Smaller Viewport
+
+```python
+browser = Browser(
+    viewport={'width': 1280, 'height': 720},  # Smaller = faster rendering
+)
+```
+
+## Agent Configuration
+
+### Limit Steps
+
+```python
+agent = Agent(
+    task="Quick data extraction",
+    llm=ChatBrowserUse(),
+    max_actions_per_step=3,  # Execute up to 3 actions per step
+)
+
+await agent.run(max_steps=10)  # Stop after 10 steps
+```
+
+### Skip Vision When Not Needed
+
+```python
+agent = Agent(
+    task="Extract text data (no screenshots needed)",
+    llm=ChatBrowserUse(),
+    use_vision=False,  # Don't send screenshots to LLM
+)
+```
+
+Vision modes:
+- `use_vision=True` - Always include screenshots (slowest, most accurate)
+- `use_vision="auto"` - Include screenshots only when requested (balanced)
+- `use_vision=False` - Never use vision (fastest)
+
+### Direct URL Opening
+
+```python
+agent = Agent(
+    task="Go to https://example.com and extract title",
+    llm=ChatBrowserUse(),
+    directly_open_url=True,  # Auto-detect and open URLs (default)
+)
+```
+
+The agent automatically opens detected URLs instead of searching.
+
+### Faster Page Extraction
+
+Use a lightweight model for page content extraction:
+
+```python
+agent = Agent(
+    task="Complex reasoning task",
+    llm=ChatBrowserUse(),  # Main LLM for decisions
+    page_extraction_llm=ChatOpenAI(model="gpt-4o-mini"),  # Fast model for extraction
+)
+```
+
+### Reduce History
+
+```python
+agent = Agent(
+    task="Long-running task",
+    llm=ChatBrowserUse(),
+    max_history_items=10,  # Keep only last 10 steps in memory
+)
+```
+
+## Timeouts
+
+### Agent Timeouts
+
+```python
+agent = Agent(
+    task="Task",
+    llm=ChatBrowserUse(),
+    llm_timeout=30,    # LLM call timeout (default: 60s)
+    step_timeout=120,  # Single step timeout (default: 180s)
+)
+```
+
+### Cloud Browser Timeouts
+
+```python
+browser = Browser(
+    use_cloud=True,
+    cloud_timeout=10,  # Session timeout in minutes (max: 15 free, 240 paid)
+)
+```
+
+### Page Load Timeouts
+
+```python
+browser = Browser(
+    minimum_wait_page_load_time=0.1,         # Min wait before capture (default: 0.25s)
+    wait_for_network_idle_page_load_time=0.3, # Wait for network idle (default: 0.5s)
+    wait_between_actions=0.3,                 # Wait between actions (default: 0.5s)
+)
+```
+
+## Sandbox Optimization
+
+### Minimal Sandbox
+
+```python
+from browser_use import sandbox
+
+@sandbox(
+    cloud_timeout=5,              # Short timeout for quick tasks
+    log_level='WARNING',          # Less logging overhead
+    quiet=True,                   # No console output
+)
+async def fast_task(browser: Browser):
+    agent = Agent(
+        task="Quick extraction",
+        browser=browser,
+        llm=ChatBrowserUse(),
+        flash_mode=True,
+    )
+    await agent.run(max_steps=5)
+```
+
+### Reuse Profiles
+
+```python
+# Create profile once
+PROFILE_ID = 'reusable-auth-profile'
+
+# Reuse across tasks (avoids re-authentication)
+@sandbox(cloud_profile_id=PROFILE_ID)
+async def task1(browser: Browser):
+    pass
+
+@sandbox(cloud_profile_id=PROFILE_ID)
+async def task2(browser: Browser):
+    pass
+```
+
+## Tool Optimization
+
+### Remove Unused Tools
+
+```python
+from browser_use import Tools
+
+# Only include needed tools
+tools = Tools(
+    exclude_actions=[
+        'screenshot',   # Skip if not using vision
+        'wait',         # Skip if not needed
+        'send_keys',    # Skip if not using keyboard
+    ]
+)
+
+agent = Agent(
+    task="Task",
+    llm=ChatBrowserUse(),
+    tools=tools,
+)
+```
+
+### Deterministic Actions
+
+Use Actor API for deterministic actions (no LLM calls):
+
+```python
+from browser_use import Tools, ActionResult, BrowserSession
+from browser_use.actor import Page
+
+tools = Tools()
+
+@tools.action('Click login button (fast)')
+async def fast_login(browser_session: BrowserSession) -> ActionResult:
+    # Direct DOM interaction - no LLM
+    page: Page = await browser_session.get_page()
+    
+    # Hardcoded selector (fast)
+    elements = await page.get_elements_by_css_selector('button#login')
+    if elements:
+        await elements[0].click()
+        return ActionResult(extracted_content="Clicked login")
+    
+    return ActionResult(error="Login button not found")
+
+agent = Agent(
+    task="Login and extract data",
+    llm=ChatBrowserUse(),
+    tools=tools,  # Agent uses fast_login action
+)
+```
+
+## Parallel Execution
+
+### Multiple Agents
+
+```python
+import asyncio
+from browser_use import Agent, Browser, ChatBrowserUse
+
+async def scrape_page(url: str) -> str:
+    browser = Browser(use_cloud=True, headless=True)
+    agent = Agent(
+        task=f"Extract title from {url}",
+        browser=browser,
+        llm=ChatBrowserUse(),
+        flash_mode=True,
+    )
+    history = await agent.run(max_steps=5)
+    return history.final_result()
+
+# Run 50 tasks in parallel
+urls = [f"https://example.com/page/{i}" for i in range(50)]
+results = await asyncio.gather(*[scrape_page(url) for url in urls])
+```
+
+### Rate Limiting
+
+```python
+import asyncio
+from asyncio import Semaphore
+
+async def scrape_with_limit(urls: list[str], max_concurrent: int = 10):
+    semaphore = Semaphore(max_concurrent)
+    
+    async def limited_scrape(url: str):
+        async with semaphore:
+            return await scrape_page(url)
+    
+    return await asyncio.gather(*[limited_scrape(url) for url in urls])
+
+# Limit to 10 concurrent tasks
+results = await scrape_with_limit(urls, max_concurrent=10)
+```
+
+## Monitoring & Profiling
+
+### Track Execution Time
+
+```python
+import time
+
+start = time.time()
+history = await agent.run()
+duration = time.time() - start
+
+print(f"Execution time: {duration:.2f}s")
+print(f"Steps taken: {history.number_of_steps()}")
+print(f"Time per step: {duration / history.number_of_steps():.2f}s")
+```
+
+### Token Usage
+
+```python
+agent = Agent(
+    task="Task",
+    llm=ChatBrowserUse(),
+    calculate_cost=True,  # Track token usage
+)
+
+history = await agent.run()
+
+if history.usage:
+    print(f"Total tokens: {history.usage.total_tokens}")
+    print(f"Estimated cost: ${history.usage.total_cost:.4f}")
+```
+
+### Step Metadata
+
+```python
+history = await agent.run()
+
+for step in history.history:
+    if step.metadata:
+        print(f"Step {step.metadata.step_number}: "
+              f"{step.metadata.duration_seconds:.2f}s")
+```
+
+## Production Best Practices
+
+### 1. Use ChatBrowserUse + Cloud Browser
+
+```python
+# Optimal production setup
+browser = Browser(
+    use_cloud=True,                   # Fastest infrastructure
+    cloud_profile_id='prod-profile',  # Reuse auth
+    cloud_proxy_country_code='us',    # Bypass captchas
+)
+
+agent = Agent(
+    task="Production task",
+    browser=browser,
+    llm=ChatBrowserUse(),  # Fastest model
+    flash_mode=True,       # Skip unnecessary reasoning
+)
+```
+
+### 2. Set Aggressive Timeouts
+
+```python
+agent = Agent(
+    task="Task",
+    llm=ChatBrowserUse(),
+    llm_timeout=30,     # Fail fast on slow LLM calls
+    step_timeout=60,    # Fail fast on stuck steps
+    max_failures=2,     # Don't retry too many times
+)
+
+await agent.run(max_steps=20)  # Hard limit on steps
+```
+
+### 3. Monitor and Alert
+
+```python
+import logging
+
+logger = logging.getLogger(__name__)
+
+try:
+    start = time.time()
+    history = await agent.run(max_steps=20)
+    duration = time.time() - start
+    
+    # Alert on slow execution
+    if duration > 60:
+        logger.warning(f"Slow execution: {duration}s for {history.number_of_steps()} steps")
+    
+    # Alert on high step count
+    if history.number_of_steps() > 15:
+        logger.warning(f"High step count: {history.number_of_steps()} steps")
+        
+except Exception as e:
+    logger.error(f"Agent failed: {e}")
+    # Send to monitoring service
+```
+
+### 4. Cache Results
+
+```python
+import hashlib
+import json
+from functools import lru_cache
+
+@lru_cache(maxsize=100)
+async def cached_scrape(url: str) -> str:
+    agent = Agent(
+        task=f"Extract title from {url}",
+        browser=browser,
+        llm=ChatBrowserUse(),
+    )
+    history = await agent.run()
+    return history.final_result()
+
+# First call: executes agent
+result1 = await cached_scrape("https://example.com")
+
+# Second call: returns cached result
+result2 = await cached_scrape("https://example.com")
+```
+
+## Benchmarking
+
+Compare configurations:
+
+```python
+import time
+
+async def benchmark_config(name: str, agent: Agent):
+    start = time.time()
+    history = await agent.run(max_steps=20)
+    duration = time.time() - start
+    
+    print(f"{name}:")
+    print(f"  Time: {duration:.2f}s")
+    print(f"  Steps: {history.number_of_steps()}")
+    print(f"  Success: {history.is_successful()}")
+    print()
+
+# Baseline
+agent1 = Agent(
+    task="Extract product info",
+    llm=ChatOpenAI(model="gpt-4o-mini"),
+)
+await benchmark_config("Baseline", agent1)
+
+# Optimized
+agent2 = Agent(
+    task="Extract product info",
+    browser=Browser(use_cloud=True),
+    llm=ChatBrowserUse(),
+    flash_mode=True,
+    use_vision=False,
+)
+await benchmark_config("Optimized", agent2)
+```
+
+## See Also
+
+- [Supported Models](/customize/agent/supported-models) - LLM options
+- [Cloud Browser](/advanced/cloud-browser) - Infrastructure optimization
+- [Agent Parameters](/customize/agent/all-parameters) - Configuration reference

@@ -1,0 +1,347 @@
+---
+title: Shopping Automation
+description: Automate online shopping and grocery ordering with Browser Use
+icon: cart-shopping
+---
+
+Browser Use can handle complex e-commerce workflows including product search, cart management, and checkout processes.
+
+## Basic Product Search
+
+Search for products and add them to cart:
+
+```python
+import asyncio
+from browser_use import Agent, ChatOpenAI
+
+async def main():
+    task = """
+    1. Go to Amazon.com
+    2. Search for "wireless headphones"
+    3. Find products under $50
+    4. Add the highest rated option to cart
+    5. Tell me what you added
+    """
+    
+    agent = Agent(task=task, llm=ChatOpenAI(model='gpt-4.1-mini'))
+    await agent.run()
+
+if __name__ == '__main__':
+    asyncio.run(main())
+```
+
+## Complete Grocery Shopping
+
+Real-world example from the Browser Use repository - automated grocery shopping on Migros Online:
+
+```python
+import asyncio
+from browser_use import Agent, ChatOpenAI
+from dotenv import load_dotenv
+
+load_dotenv()
+
+task = """
+### Prompt for Shopping Agent – Migros Online Grocery Order
+
+**Objective:**
+Visit Migros Online (https://www.migros.ch/en), search for grocery items, 
+add them to cart, select delivery window, and complete checkout.
+
+**Important:**
+- Don't buy more than needed for each article
+- After search, click the "+" button to add items to basket
+- If basket side window opens, close it with X button on top right
+
+---
+
+### Step 1: Navigate to the Website
+- Open https://www.migros.ch/en
+- Verify you're logged in
+
+---
+
+### Step 2: Add Items to the Basket
+
+#### Shopping List:
+
+**Meat & Dairy:**
+- Beef Minced meat (1 kg)
+- Gruyère cheese (grated preferably)
+- 2 liters full-fat milk
+- Butter (cheapest available)
+
+**Vegetables:**
+- Carrots (1kg pack)
+- Celery
+- Leeks (1 piece)
+- 1 kg potatoes
+
+Check the basket on top right to verify correct items.
+
+**Fruits:**
+- 2 lemons
+- Oranges (for snacking)
+
+**Pantry Items:**
+- Lasagna sheets
+- Tahini
+- Tomato paste (below CHF2)
+- Black pepper refill (not with the mill)
+- 2x 1L Oatly Barista (oat milk)
+- 1 pack of eggs (10 egg package)
+
+#### Ingredients I already have (DO NOT purchase):
+- Olive oil, garlic, canned tomatoes, dried oregano, bay leaves, 
+  salt, chili flakes, flour, nutmeg, cumin
+
+---
+
+### Step 3: Handling Unavailable Items
+- If an item is out of stock, find the best alternative
+- Use recipe context to choose substitutions:
+  - **Pasta Bolognese & Lasagna:** Minced meat, tomato paste, 
+    lasagna sheets, milk, Gruyère cheese
+  - **Hummus:** Tahini, chickpeas, lemon juice, olive oil
+  - **Chickpea Curry Soup:** Chickpeas, leeks, curry, lemons
+  - **Pork Belly with Vegetables:** Potatoes, butter
+
+---
+
+### Step 4: Adjusting for Minimum Order
+- If total is below CHF 99, add liquid soap refill to reach minimum
+- If still needed, add bread or dark chocolate
+- Check if you bought MORE than needed - if over CHF200, remove items
+- Remove alcoholic products if age verification is needed
+
+---
+
+### Step 5: Select Delivery Window
+- Choose delivery window within current week
+- OK to pay up to CHF2 for window selection
+- Preferably select a workweek slot
+
+---
+
+### Step 6: Checkout
+- Proceed to checkout
+- Select TWINT as payment method
+- Complete the order
+
+---
+
+### Step 7: Output Summary
+- Final list of items purchased (including substitutions)
+- Total cost
+- Chosen delivery time
+"""
+
+agent = Agent(task=task, llm=ChatOpenAI(model='gpt-4.1-mini'))
+
+async def main():
+    await agent.run()
+    input('Press Enter to close the browser...')
+
+if __name__ == '__main__':
+    asyncio.run(main())
+```
+
+## Price Comparison Shopping
+
+Compare prices across multiple stores before purchasing:
+
+```python
+from pydantic import BaseModel, Field
+from browser_use import Agent, ChatBrowserUse
+
+class ProductListing(BaseModel):
+    title: str
+    price: float
+    store: str
+    url: str
+    in_stock: bool
+
+class ComparisonResult(BaseModel):
+    product: str
+    listings: list[ProductListing]
+    best_deal: ProductListing
+
+async def compare_prices(product: str):
+    task = f"""
+    Search for "{product}" on:
+    1. Amazon.com
+    2. BestBuy.com
+    3. Target.com
+    
+    For each store, find the product and extract:
+    - Title
+    - Price
+    - Availability
+    - Product URL
+    
+    Identify which store has the best price.
+    """
+    
+    agent = Agent(
+        task=task,
+        llm=ChatBrowserUse(),
+        output_model_schema=ComparisonResult
+    )
+    
+    return await agent.run()
+```
+
+## Cart Management
+
+<CodeGroup>
+```python Add Multiple Items
+task = """
+Go to example-store.com and:
+1. Search for "running shoes size 10"
+2. Add 2 pairs to cart
+3. Search for "sports socks"
+4. Add 3 pairs to cart
+5. Review cart total
+"""
+```
+
+```python Remove Items
+task = """
+Go to my cart on example-store.com:
+1. Review all items
+2. Remove items over $100
+3. Update quantities: change running shoes from 2 to 1
+4. Apply coupon code "SAVE20"
+5. Calculate new total
+"""
+```
+
+```python Save for Later
+task = """
+In my Amazon cart:
+1. Move expensive items (over $50) to "Save for Later"
+2. Keep only items under $50 in cart
+3. Proceed to checkout with remaining items
+"""
+```
+</CodeGroup>
+
+## Checkout Automation
+
+<Warning>
+**Security**: Never store real payment information in scripts. Use test accounts or authentication profiles.
+</Warning>
+
+```python
+task = """
+Complete checkout on example-store.com:
+
+Shipping Information:
+- Name: John Doe
+- Address: 123 Main St
+- City: San Francisco
+- State: CA
+- ZIP: 94102
+
+Delivery:
+- Select standard shipping (5-7 days)
+
+Review:
+- Verify order total
+- Check all items are correct
+- Apply any available coupons
+
+DO NOT submit payment - stop at payment review page.
+"""
+
+agent = Agent(
+    task=task,
+    llm=ChatBrowserUse(),
+    sensitive_data={'address': '123 Main St'}  # Protect sensitive data
+)
+```
+
+## Filter and Sort Products
+
+```python
+task = """
+On Amazon.com:
+1. Search for "laptop"
+2. Filter by:
+   - Price: $500-$1000
+   - Brand: Dell or HP
+   - Rating: 4 stars and above
+3. Sort by: Customer reviews (highest first)
+4. Show me the top 3 results with:
+   - Name
+   - Price
+   - Rating
+   - Key features
+"""
+```
+
+## Deal Hunting
+
+Find products on sale or with specific discounts:
+
+```python
+task = """
+Go to BestBuy.com and:
+1. Navigate to "Deals" section
+2. Filter by "Today's Deals"
+3. Find electronics with at least 30% off
+4. Sort by highest discount
+5. Extract top 5 deals with:
+   - Product name
+   - Original price
+   - Sale price
+   - Discount percentage
+   - Deal expiration time
+"""
+```
+
+## Subscription Management
+
+```python
+task = """
+Go to my Amazon account subscriptions page:
+1. List all active subscriptions
+2. For each subscription show:
+   - Product name
+   - Delivery frequency
+   - Next delivery date
+   - Price
+3. Pause the coffee subscription
+4. Change dog food delivery from monthly to bi-weekly
+"""
+```
+
+## Shopping Tips
+
+<Steps>
+  <Step title="Use Authentication Profiles">
+    Save login sessions with cloud profiles to avoid re-authenticating
+  </Step>
+  
+  <Step title="Handle Dynamic Pricing">
+    Some prices update dynamically - extract data multiple times if needed
+  </Step>
+  
+  <Step title="Check Availability">
+    Always verify stock status before attempting to purchase
+  </Step>
+  
+  <Step title="Test Without Payment">
+    Stop automation at the payment review page for safety
+  </Step>
+</Steps>
+
+<Note>
+**Best Practice**: Use the agent's `sensitive_data` parameter to securely handle addresses, phone numbers, and personal information.
+</Note>
+
+## Related Examples
+
+- [Form Filling](/examples/form-filling) - Handle checkout and shipping forms
+- [2FA Authentication](/examples/2fa) - Log into shopping accounts with 2FA
+- [Data Scraping](/examples/data-scraping) - Extract product information

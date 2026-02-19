@@ -1,80 +1,475 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Build your first Browser Use agent in under 5 minutes
 ---
 
-## Get started in three steps
+## Prerequisites
 
-Get your documentation site running locally and make your first customization.
+Before starting, make sure you have:
 
-### Step 1: Set up your local environment
+- **Python 3.11 or higher** installed
+- An **API key** from a supported LLM provider (we recommend [ChatBrowserUse](https://cloud.browser-use.com/new-api-key) - new signups get $10 free credits)
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+<Warning>
+  Browser Use requires Python 3.11+. If you're on an older version, upgrade first:
+  ```bash
+  python --version  # Check your version
+  ```
+</Warning>
+
+## Installation
+
+<Steps>
+  <Step title="Install uv (recommended)">
+    The fastest way to get started is with [uv](https://docs.astral.sh/uv/), a modern Python package manager:
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    ```bash
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    ```
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+    Or on Windows:
+    ```bash
+    powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+    ```
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    <Note>
+      Already have pip? Skip to the alternative installation method below.
+    </Note>
+  </Step>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+  <Step title="Create a new project">
+    ```bash
+    # Create a new directory
+    mkdir my-browser-agent
+    cd my-browser-agent
+    
+    # Initialize with uv
+    uv init
+    ```
+  </Step>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+  <Step title="Install Browser Use">
+    ```bash
+    # Install the latest version
+    uv add browser-use
+    uv sync
+    ```
+    
+    <Note>
+      We ship updates daily - always use the latest version for best results!
+    </Note>
+  </Step>
 
-### Step 3: Go live
+  <Step title="Install Chromium">
+    Browser Use needs a Chromium browser to control:
+    
+    ```bash
+    uvx browser-use install
+    ```
+    
+    This downloads and sets up a compatible Chromium browser automatically.
+  </Step>
+</Steps>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+### Alternative: Using pip
 
-## Next steps
+If you prefer using pip:
 
-Now that you have your docs running, explore these key features:
+```bash
+pip install browser-use
+python -m browser_use install
+```
+
+## Set Up Your API Key
+
+<Steps>
+  <Step title="Get an API key">
+    Sign up for a free API key from [Browser Use Cloud](https://cloud.browser-use.com/new-api-key).
+    
+    New signups get **$10 in free credits** to try ChatBrowserUse - the fastest and most accurate model for browser automation.
+    
+    <Note>
+      You can also use OpenAI, Anthropic, Google, or any other supported provider. See [LLM Providers](/concepts/llm-providers) for all options.
+    </Note>
+  </Step>
+
+  <Step title="Create environment file">
+    Create a `.env` file in your project directory:
+    
+    ```bash
+    touch .env
+    ```
+    
+    On Windows:
+    ```bash
+    echo. > .env
+    ```
+  </Step>
+
+  <Step title="Add your API key">
+    Open `.env` and add your key:
+    
+    <CodeGroup>
+      ```bash Browser Use
+      BROWSER_USE_API_KEY=your-key-here
+      ```
+      
+      ```bash OpenAI
+      OPENAI_API_KEY=your-key-here
+      ```
+      
+      ```bash Anthropic
+      ANTHROPIC_API_KEY=your-key-here
+      ```
+      
+      ```bash Google
+      GOOGLE_API_KEY=your-key-here
+      ```
+    </CodeGroup>
+  </Step>
+</Steps>
+
+## Your First Agent
+
+Create a file called `main.py`:
+
+```python main.py
+from browser_use import Agent, ChatBrowserUse
+import asyncio
+from dotenv import load_dotenv
+
+load_dotenv()
+
+async def main():
+    agent = Agent(
+        task="Go to HackerNews and find the top Show HN post",
+        llm=ChatBrowserUse(),
+    )
+    
+    result = await agent.run()
+    print(result.final_result())
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## Run Your Agent
+
+```bash
+python main.py
+```
+
+You should see:
+- A browser window opening (unless you set `headless=True`)
+- The agent navigating to HackerNews
+- Element highlights as the agent analyzes the page
+- Console output showing the agent's actions and reasoning
+- The final result printed at the end
+
+<Note>
+  **First run taking long?** The initial run downloads browser binaries and may take a minute. Subsequent runs are much faster!
+</Note>
+
+## More Examples
+
+### Example 1: Web Search
+
+```python
+from browser_use import Agent, ChatBrowserUse
+import asyncio
+
+async def main():
+    agent = Agent(
+        task="Search Google for 'what is browser automation' and tell me the top 3 results",
+        llm=ChatBrowserUse(model='bu-2-0'),
+    )
+    await agent.run()
+
+if __name__ == '__main__':
+    asyncio.run(main())
+```
+
+### Example 2: Form Filling
+
+```python
+from browser_use import Agent, ChatBrowserUse
+import asyncio
+
+async def main():
+    task = """
+    Go to https://httpbin.org/forms/post and fill out the form with:
+    - Customer name: John Doe
+    - Telephone: 555-123-4567
+    - Email: john.doe@example.com
+    - Size: Medium
+    - Topping: cheese
+    
+    Then submit the form and tell me the response.
+    """
+    
+    agent = Agent(task=task, llm=ChatBrowserUse())
+    await agent.run()
+
+if __name__ == '__main__':
+    asyncio.run(main())
+```
+
+### Example 3: Data Extraction
+
+```python
+from browser_use import Agent, ChatBrowserUse
+import asyncio
+
+async def main():
+    task = """
+    Go to https://quotes.toscrape.com/ and extract:
+    - The first 5 quotes
+    - The author of each quote
+    - The tags for each quote
+    
+    Format as: Quote 1: "[text]" - Author: [name] - Tags: [tags]
+    """
+    
+    agent = Agent(task=task, llm=ChatBrowserUse())
+    history = await agent.run()
+    
+    print(history.final_result())
+
+if __name__ == '__main__':
+    asyncio.run(main())
+```
+
+### Example 4: Structured Output
+
+Get results as typed Python objects:
+
+```python
+from browser_use import Agent, ChatOpenAI
+from pydantic import BaseModel
+import asyncio
+
+class Post(BaseModel):
+    post_title: str
+    post_url: str
+    num_comments: int
+
+class Posts(BaseModel):
+    posts: list[Post]
+
+async def main():
+    agent = Agent(
+        task="Go to HackerNews Show HN and get the first 5 posts",
+        llm=ChatOpenAI(model='gpt-4.1-mini'),
+        output_model_schema=Posts
+    )
+    
+    history = await agent.run()
+    result = history.final_result()
+    
+    if result:
+        parsed = Posts.model_validate_json(result)
+        for post in parsed.posts:
+            print(f"Title: {post.post_title}")
+            print(f"URL: {post.post_url}")
+            print(f"Comments: {post.num_comments}")
+            print("---")
+
+if __name__ == '__main__':
+    asyncio.run(main())
+```
+
+## Using Templates (Fast Start)
+
+Browser Use includes ready-to-run templates:
+
+```bash
+# Generate a basic agent
+uvx browser-use init --template default
+
+# Generate with all configuration options
+uvx browser-use init --template advanced
+
+# Generate with custom tools examples
+uvx browser-use init --template tools
+
+# Custom output file
+uvx browser-use init --template default --output my_agent.py
+```
+
+This creates a complete Python file you can run immediately.
+
+## Configure the Browser
+
+Customize browser behavior:
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+browser = Browser(
+    headless=False,  # Show browser window
+    window_size={'width': 1280, 'height': 720},
+    disable_security=False,  # Keep security enabled
+)
+
+agent = Agent(
+    task="Your task here",
+    llm=ChatBrowserUse(),
+    browser=browser
+)
+```
+
+<Note>
+  See the [Browser Configuration](/concepts/browser) guide for all available options.
+</Note>
+
+## Using Different LLM Providers
+
+<CodeGroup>
+  ```python ChatBrowserUse (Recommended)
+  from browser_use import ChatBrowserUse
+  
+  llm = ChatBrowserUse(model='bu-2-0')  # Optimized for browser automation
+  ```
+  
+  ```python OpenAI
+  from browser_use import ChatOpenAI
+  
+  llm = ChatOpenAI(model='gpt-4.1-mini')
+  ```
+  
+  ```python Anthropic
+  from browser_use import ChatAnthropic
+  
+  llm = ChatAnthropic(model='claude-sonnet-4-0', temperature=0.0)
+  ```
+  
+  ```python Google
+  from browser_use import ChatGoogle
+  
+  llm = ChatGoogle(model='gemini-flash-latest')
+  ```
+  
+  ```python Ollama (Local)
+  from browser_use import ChatOllama
+  
+  llm = ChatOllama(model='llama3.1:8b')
+  ```
+</CodeGroup>
+
+## Working with Agent History
+
+The `run()` method returns an `AgentHistoryList` with useful information:
+
+```python
+history = await agent.run()
+
+# Get results
+final_result = history.final_result()  # Last extracted content
+all_content = history.extracted_content()  # All extracted data
+
+# Analyze execution
+history.is_done()  # Check if completed successfully
+history.urls()  # All visited URLs
+history.action_names()  # All actions performed
+history.errors()  # Any errors encountered
+
+# Screenshots and debugging
+history.screenshots()  # All screenshots as base64
+history.screenshot_paths()  # Paths to saved screenshots
+```
+
+## Deploy to Production
+
+The easiest way to run Browser Use in production is with the `@sandbox` decorator:
+
+```python
+from browser_use import Browser, sandbox, ChatBrowserUse
+from browser_use.agent.service import Agent
+import asyncio
+
+@sandbox()
+async def production_task(browser: Browser):
+    agent = Agent(
+        task="Your production task",
+        browser=browser,
+        llm=ChatBrowserUse()
+    )
+    await agent.run()
+
+asyncio.run(production_task())
+```
+
+This handles:
+- ✅ Browser provisioning and management
+- ✅ Automatic scaling
+- ✅ Session persistence
+- ✅ Authentication handling
+
+<Note>
+  See [Going to Production](/guides/production) for advanced deployment options including authentication, proxies, and stealth mode.
+</Note>
+
+## Troubleshooting
+
+### Browser doesn't open
+
+Make sure Chromium is installed:
+```bash
+uvx browser-use install
+```
+
+### Import errors
+
+Ensure you're using Python 3.11+:
+```bash
+python --version
+```
+
+### API key not found
+
+Check that your `.env` file is in the same directory as your script and properly formatted:
+```bash
+BROWSER_USE_API_KEY=your-key-here  # No quotes, no spaces around =
+```
+
+### Slow performance
+
+For faster execution:
+1. Use ChatBrowserUse (3-5x faster than other models)
+2. Enable `flash_mode=True` for simple tasks
+3. Use Browser Use Cloud with `use_cloud=True`
+
+```python
+agent = Agent(
+    task="Fast task",
+    llm=ChatBrowserUse(),
+    flash_mode=True  # Skip thinking/evaluation for speed
+)
+```
+
+## Next Steps
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Installation Details" icon="download" href="/installation">
+    Learn about advanced installation options
+  </Card>
+  <Card title="Browser Configuration" icon="browser" href="/browser/basics">
+    Customize browser behavior and settings
+  </Card>
+  <Card title="Custom Tools" icon="toolbox" href="/tools/basics">
+    Extend agents with custom Python functions
+  </Card>
+  <Card title="Production Deployment" icon="rocket" href="/production">
+    Deploy to production with sandboxes
+  </Card>
+  <Card title="100+ Examples" icon="code" href="https://github.com/browser-use/browser-use/tree/main/examples">
+    Explore real-world use cases
+  </Card>
+  <Card title="Discord Community" icon="discord" href="https://link.browser-use.com/discord">
+    Join 20k+ developers
+  </Card>
 </CardGroup>
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  **Need help?** Join our [Discord community](https://link.browser-use.com/discord) with 20,000+ developers ready to help!
 </Note>

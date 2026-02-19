@@ -1,0 +1,267 @@
+---
+title: "Sandbox Settings"
+description: "Configuration options for running Browser Use in production with cloud sandboxes"
+icon: "cloud"
+mode: "wide"
+---
+
+Sandbox settings control how your Browser Use code runs in production environments with cloud-hosted browsers.
+
+<Note>
+  Sandboxes are the **easiest way to run Browser Use in production**. They handle agents, browsers, persistence, auth, cookies, and LLMs with minimal latency.
+  
+  See [Going to Production](/production) for the complete guide.
+</Note>
+
+## Quick Start
+
+Wrap your function with `@sandbox()` to run it in production:
+
+```python
+from browser_use import Browser, sandbox, ChatBrowserUse
+from browser_use.agent.service import Agent
+import asyncio
+
+@sandbox()
+async def my_task(browser: Browser):
+    agent = Agent(
+        task="Your task here",
+        browser=browser,
+        llm=ChatBrowserUse()
+    )
+    await agent.run()
+
+asyncio.run(my_task())
+```
+
+---
+
+## Cloud Browser Parameters
+
+### use_cloud
+
+<ParamField path="use_cloud" type="bool" default="False">
+  Enable Browser Use cloud browser service.
+  
+  Automatically provisions a remote browser optimized for automation.
+  
+  **Example:**
+  ```python
+  browser = Browser(use_cloud=True)
+  ```
+</ParamField>
+
+### cloud_profile_id
+
+<ParamField path="cloud_profile_id" type="string">
+  UUID of a browser profile to use.
+  
+  If not specified, uses the default profile.
+  
+  **Get profile ID:**
+  ```bash
+  export BROWSER_USE_API_KEY=your_key && curl -fsSL https://browser-use.com/profile.sh | sh
+  ```
+  
+  See [Going to Production](/production) for details.
+</ParamField>
+
+### cloud_proxy_country_code
+
+<ParamField path="cloud_proxy_country_code" type="string">
+  Country code for proxy location.
+  
+  **Supported countries:** `us`, `uk`, `fr`, `it`, `jp`, `au`, `de`, `fi`, `ca`, `in`
+  
+  **Use cases:**
+  - Bypass captchas
+  - Bypass Cloudflare protection
+  - Access geo-restricted content
+  
+  **Example:**
+  ```python
+  browser = Browser(
+      use_cloud=True,
+      cloud_proxy_country_code='us'
+  )
+  ```
+</ParamField>
+
+### cloud_timeout
+
+<ParamField path="cloud_timeout" type="int">
+  Session timeout in minutes.
+  
+  **Limits:**
+  - Free users: max 15 minutes
+  - Paid users: max 240 minutes
+  
+  **Example:**
+  ```python
+  browser = Browser(
+      use_cloud=True,
+      cloud_timeout=30
+  )
+  ```
+</ParamField>
+
+---
+
+## Authentication Setup
+
+### Prerequisites
+
+1. Get an API key from [cloud.browser-use.com/new-api-key](https://cloud.browser-use.com/new-api-key)
+2. Set the environment variable:
+   ```bash
+   export BROWSER_USE_API_KEY=your_key
+   ```
+
+### Sync Local Cookies to Cloud
+
+To use your local authentication in production:
+
+```bash
+export BROWSER_USE_API_KEY=your_key && curl -fsSL https://browser-use.com/profile.sh | sh
+```
+
+This:
+1. Opens a browser where you log into your accounts
+2. Syncs cookies to the cloud
+3. Returns a `profile_id`
+
+### Use Authenticated Profile
+
+```python
+from browser_use import Browser, sandbox, ChatBrowserUse
+from browser_use.agent.service import Agent
+import asyncio
+
+@sandbox(cloud_profile_id='your-profile-id')
+async def authenticated_task(browser: Browser):
+    agent = Agent(
+        task="Your authenticated task",
+        browser=browser,
+        llm=ChatBrowserUse()
+    )
+    await agent.run()
+
+asyncio.run(authenticated_task())
+```
+
+Your cloud browser is already logged in!
+
+---
+
+## Sandbox Decorator Parameters
+
+All parameters are optional:
+
+<ParamField path="cloud_profile_id" type="string">
+  Browser profile ID for authentication
+</ParamField>
+
+<ParamField path="cloud_proxy_country_code" type="string">
+  Proxy country code (us, uk, fr, etc.)
+</ParamField>
+
+<ParamField path="cloud_timeout" type="int">
+  Session timeout in minutes
+</ParamField>
+
+---
+
+## Complete Example
+
+```python
+from browser_use import Browser, sandbox, ChatBrowserUse
+from browser_use.agent.service import Agent
+import asyncio
+
+# Basic sandbox
+@sandbox()
+async def basic_task(browser: Browser):
+    agent = Agent(
+        task="Find top HN post",
+        browser=browser,
+        llm=ChatBrowserUse()
+    )
+    await agent.run()
+
+# With proxy for stealth
+@sandbox(cloud_proxy_country_code='us')
+async def stealth_task(browser: Browser):
+    agent = Agent(
+        task="Your task",
+        browser=browser,
+        llm=ChatBrowserUse()
+    )
+    await agent.run()
+
+# With authentication
+@sandbox(cloud_profile_id='your-profile-id')
+async def authenticated_task(browser: Browser):
+    agent = Agent(
+        task="Your authenticated task",
+        browser=browser,
+        llm=ChatBrowserUse()
+    )
+    await agent.run()
+
+# Full configuration
+@sandbox(
+    cloud_profile_id='your-profile-id',
+    cloud_proxy_country_code='us',
+    cloud_timeout=30
+)
+async def production_task(browser: Browser):
+    agent = Agent(
+        task="Complex production task",
+        browser=browser,
+        llm=ChatBrowserUse()
+    )
+    history = await agent.run()
+    return history.final_result()
+
+# Run any task
+asyncio.run(production_task())
+```
+
+---
+
+## Benefits of Cloud Sandboxes
+
+<CardGroup cols={2}>
+  <Card title="Zero Setup" icon="rocket">
+    No local browser configuration or dependencies needed
+  </Card>
+  <Card title="Built for Scale" icon="chart-line">
+    Handle millions of agents with automatic resource management
+  </Card>
+  <Card title="Lowest Latency" icon="bolt">
+    Agent runs next to the browser for minimal network overhead
+  </Card>
+  <Card title="Anti-Bot Protection" icon="shield">
+    Bypass captchas, Cloudflare, and bot detection automatically
+  </Card>
+  <Card title="Global Proxies" icon="globe">
+    Access geo-restricted content with country-specific proxies
+  </Card>
+  <Card title="Authentication" icon="key">
+    Sync local cookies to cloud for seamless authenticated sessions
+  </Card>
+</CardGroup>
+
+---
+
+## Advanced Configuration
+
+For more sandbox parameters and events, see [Sandbox Quickstart](/customize/sandbox/quickstart).
+
+---
+
+## Related Configuration
+
+- [Agent Settings](/api/config/agent-settings) - Configure agent behavior
+- [Browser Settings](/api/config/browser-settings) - Configure browser options
+- [Going to Production](/production) - Complete production deployment guide

@@ -1,0 +1,167 @@
+---
+title: "Interaction Actions"
+description: "Actions for clicking, typing, scrolling, and interacting with page elements"
+icon: "hand-pointer"
+mode: "wide"
+---
+
+Interaction actions allow the agent to manipulate page elements like a human user.
+
+## click
+
+Click on an element by its index from the browser state.
+
+<ParamField path="index" type="int" required>
+  Element index from `browser_state`. Must be ≥ 1.
+  
+  Element at index 0 represents the entire page and cannot be clicked.
+</ParamField>
+
+<ParamField path="coordinate_x" type="int">
+  Horizontal coordinate relative to viewport left edge (optional, for coordinate-based clicking)
+</ParamField>
+
+<ParamField path="coordinate_y" type="int">
+  Vertical coordinate relative to viewport top edge (optional, for coordinate-based clicking)
+</ParamField>
+
+### Example
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+agent = Agent(
+    task="Go to example.com and click the first link",
+    llm=ChatBrowserUse(),
+    browser=Browser()
+)
+
+await agent.run()
+```
+
+<Note>
+  The agent automatically detects new tabs opened by clicks and provides information about them.
+</Note>
+
+**Implementation:** `browser_use.tools.service:566` (index-based), `browser_use.tools.service:521` (coordinate-based)
+
+---
+
+## input
+
+Type text into an input field.
+
+<ParamField path="index" type="int" required>
+  Element index from `browser_state` pointing to an input field
+</ParamField>
+
+<ParamField path="text" type="string" required>
+  The text to type into the field
+</ParamField>
+
+<ParamField path="clear" type="bool" default="True">
+  Whether to clear the field before typing. Set to `False` to append text.
+</ParamField>
+
+### Example
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+agent = Agent(
+    task="Go to google.com and search for 'browser use'",
+    llm=ChatBrowserUse(),
+    browser=Browser()
+)
+
+await agent.run()
+```
+
+<Warning>
+  For autocomplete fields, wait for suggestions to appear before selecting. The action will add a brief delay for JavaScript-driven autocomplete.
+</Warning>
+
+**Implementation:** `browser_use.tools.service:639`
+
+---
+
+## scroll
+
+Scroll the page or a specific element up or down.
+
+<ParamField path="down" type="bool" default="True" required>
+  Direction to scroll. `True` = scroll down, `False` = scroll up
+</ParamField>
+
+<ParamField path="pages" type="float" default="1.0">
+  Number of pages to scroll. 
+  - `0.5` = half page
+  - `1.0` = full page
+  - `10.0` = scroll to bottom/top
+  
+  Range: 0.5 to 10.0
+</ParamField>
+
+<ParamField path="index" type="int">
+  Optional element index to scroll within a specific element (e.g., dropdowns, custom scrollable containers)
+</ParamField>
+
+### Example
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+agent = Agent(
+    task="Go to hackernews and scroll down 3 pages",
+    llm=ChatBrowserUse(),
+    browser=Browser()
+)
+
+await agent.run()
+```
+
+<Note>
+  Viewport height is automatically detected for accurate scrolling. Multi-page scrolls execute sequentially to ensure each completes.
+</Note>
+
+**Implementation:** `browser_use.tools.service:1241`
+
+---
+
+## send_keys
+
+Send special keyboard keys or shortcuts to the page.
+
+<ParamField path="keys" type="string" required>
+  Keys to send. Can be:
+  - Special keys: `Escape`, `Enter`, `Tab`, `PageDown`, `PageUp`, `ArrowDown`, `ArrowUp`, `ArrowLeft`, `ArrowRight`
+  - Key combinations: `Control+c`, `Control+v`, `Control+a`
+  - Or any other keyboard input
+</ParamField>
+
+### Example
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse
+
+agent = Agent(
+    task="Press Tab three times then Enter",
+    llm=ChatBrowserUse(),
+    browser=Browser()
+)
+
+await agent.run()
+```
+
+<Tip>
+  Use `send_keys` for keyboard navigation when buttons can't be clicked or for form submission shortcuts.
+</Tip>
+
+**Implementation:** `browser_use.tools.service:1346`
+
+---
+
+## Related Actions
+
+- [Navigation Actions](/api/actions/navigation) - Navigate between pages
+- [File Actions](/api/actions/files) - Upload and manage files

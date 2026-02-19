@@ -1,0 +1,719 @@
+---
+title: 'LLM Providers'
+description: 'Understanding supported language models and how to configure them'
+icon: 'brain'
+---
+
+## Overview
+
+Browser Use supports multiple LLM providers through a unified `BaseChatModel` interface. Each provider offers different models with varying capabilities, speeds, and costs. The agent automatically configures optimal settings based on your chosen model.
+
+## BaseChatModel Interface
+
+All LLM providers implement the `BaseChatModel` protocol (line 18 in `llm/base.py`):
+
+```python
+class BaseChatModel(Protocol):
+    model: str  # Model identifier
+    provider: str  # Provider name
+    
+    async def ainvoke(
+        self,
+        messages: list[BaseMessage],
+        output_format: type[T] | None = None,
+        **kwargs
+    ) -> ChatInvokeCompletion[T | str]:
+        """Call the LLM with messages and optional structured output."""
+```
+
+<Info>
+The unified interface means you can switch providers without changing your agent code - just swap the LLM instance.
+</Info>
+
+## Recommended: ChatBrowserUse
+
+The **ChatBrowserUse** model is specifically optimized for browser automation tasks:
+
+```python
+from browser_use import Agent, ChatBrowserUse
+
+agent = Agent(
+    task="Your browser automation task",
+    llm=ChatBrowserUse(),
+)
+```
+
+<Note icon="star" color="#FFC107">
+**Why ChatBrowserUse?**
+- **Fastest**: 3-5x faster task completion
+- **Cheapest**: Lowest token cost per task
+- **Most accurate**: Built specifically for Browser Use
+- **Free credits**: Get $10 to start at [cloud.browser-use.com](https://cloud.browser-use.com/new-api-key)
+</Note>
+
+**Setup:**
+```bash
+# Add to .env
+BROWSER_USE_API_KEY=your_key_here
+```
+
+**Model Selection:**
+```python
+# Default (recommended)
+llm = ChatBrowserUse()
+
+# Specific model
+llm = ChatBrowserUse(model='browser-use/gpt-4.1-mini')
+```
+
+## Supported Providers
+
+### OpenAI
+
+Wide range of models including GPT-4 and GPT-3.5:
+
+```python
+from browser_use import ChatOpenAI
+
+# GPT-4.1 Mini (recommended for cost/performance)
+llm = ChatOpenAI(model='gpt-4.1-mini')
+
+# GPT-4.1 (most capable)
+llm = ChatOpenAI(model='gpt-4.1')
+
+# O3 Mini (reasoning model)
+llm = ChatOpenAI(model='o3-mini')
+```
+
+**Setup:**
+```bash
+# .env
+OPENAI_API_KEY=sk-...
+```
+
+**Model Options:**
+- `gpt-4.1-mini` - Fast, cost-effective
+- `gpt-4.1` - Most capable, slower
+- `o3-mini` - Advanced reasoning
+- `gpt-3.5-turbo` - Legacy, cheap
+
+**Auto-Configuration:**
+- O3 models: 90s LLM timeout
+- Default: 75s timeout
+
+### Anthropic
+
+Claude models with excellent reasoning:
+
+```python
+from browser_use import ChatAnthropic
+
+# Claude Sonnet 4 (recommended)
+llm = ChatAnthropic(model='claude-sonnet-4-0')
+
+# Claude Opus 4 (most capable)
+llm = ChatAnthropic(model='claude-opus-4-0')
+
+# With temperature
+llm = ChatAnthropic(
+    model='claude-sonnet-4-0',
+    temperature=0.0,  # Deterministic output
+)
+```
+
+**Setup:**
+```bash
+# .env
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+**Model Options:**
+- `claude-sonnet-4-0` - Best balance, coordinate clicking
+- `claude-opus-4-0` - Most capable, coordinate clicking
+- `claude-sonnet-3-5` - Previous generation
+
+**Auto-Configuration:**
+- Screenshot size: 1400x850 (auto-optimized)
+- LLM timeout: 90s
+- Coordinate clicking: Enabled for Sonnet 4 & Opus 4
+
+<Info>
+Claude models excel at visual understanding and complex multi-step reasoning.
+</Info>
+
+### Google
+
+Gemini models with fast inference:
+
+```python
+from browser_use import ChatGoogle
+
+# Gemini 2.0 Flash (fastest)
+llm = ChatGoogle(model='gemini-flash-latest')
+
+# Gemini 3 Pro (experimental, coordinate clicking)
+llm = ChatGoogle(model='gemini-3-pro-exp')
+
+# With safety settings
+llm = ChatGoogle(
+    model='gemini-flash-latest',
+    safety_settings={
+        'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
+    }
+)
+```
+
+**Setup:**
+```bash
+# .env
+GOOGLE_API_KEY=AIza...
+# Get free key: https://aistudio.google.com/app/apikey
+```
+
+**Model Options:**
+- `gemini-flash-latest` - Fast, cost-effective
+- `gemini-3-pro-exp` - Experimental, coordinate clicking
+- `gemini-pro-latest` - Stable, capable
+
+**Auto-Configuration:**
+- Gemini 3 Pro: 90s timeout, coordinate clicking
+- Other Gemini: 75s timeout
+
+### DeepSeek
+
+Cost-effective models with good performance:
+
+```python
+from browser_use import ChatDeepSeek
+
+llm = ChatDeepSeek(model='deepseek-chat')
+
+# With custom endpoint
+llm = ChatDeepSeek(
+    model='deepseek-chat',
+    base_url='https://api.deepseek.com',
+)
+```
+
+**Setup:**
+```bash
+# .env
+DEEPSEEK_API_KEY=sk-...
+```
+
+**Auto-Configuration:**
+- LLM timeout: 90s
+- Vision: Disabled (not yet supported)
+
+<Warning>
+DeepSeek models don't support vision yet. The agent automatically sets `use_vision=False`.
+</Warning>
+
+### Groq
+
+Ultra-fast inference with LPU:
+
+```python
+from browser_use import ChatGroq
+
+llm = ChatGroq(model='llama-3.3-70b-versatile')
+```
+
+**Setup:**
+```bash
+# .env
+GROQ_API_KEY=gsk_...
+```
+
+**Auto-Configuration:**
+- LLM timeout: 30s (fast inference)
+
+### XAI (Grok)
+
+XAI's Grok models:
+
+```python
+from browser_use.llm.xai import ChatXAI
+
+# Grok 2 (vision supported)
+llm = ChatXAI(model='grok-2-latest')
+
+# Grok 4 (vision supported)
+llm = ChatXAI(model='grok-4-latest')
+```
+
+**Setup:**
+```bash
+# .env
+XAI_API_KEY=xai-...
+```
+
+**Vision Support:**
+- ✅ Grok 2, Grok 4
+- ❌ Grok 3, Grok Code (auto-disabled)
+
+### AWS Bedrock
+
+Use models through AWS:
+
+```python
+from browser_use import ChatBedrock
+
+llm = ChatBedrock(
+    model='anthropic.claude-sonnet-4-0',
+    region='us-west-2',
+)
+```
+
+**Setup:**
+```bash
+# .env
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_DEFAULT_REGION=us-west-2
+```
+
+### Azure OpenAI
+
+OpenAI models through Azure:
+
+```python
+from browser_use import ChatAzureOpenAI
+
+llm = ChatAzureOpenAI(
+    model='gpt-4.1',
+    deployment_name='gpt-4-deployment',
+    api_version='2024-02-15-preview',
+)
+```
+
+**Setup:**
+```bash
+# .env
+AZURE_OPENAI_API_KEY=...
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
+```
+
+### Ollama
+
+Local models with Ollama:
+
+```python
+from browser_use import ChatOllama
+
+llm = ChatOllama(
+    model='llama3.1',
+    base_url='http://localhost:11434',
+)
+```
+
+**Setup:**
+```bash
+# Install Ollama and pull model
+ollama pull llama3.1
+```
+
+<Note>
+Local models may require more patience and fine-tuning for browser automation tasks.
+</Note>
+
+## Model Configuration
+
+### Temperature
+
+Control randomness in model outputs:
+
+```python
+# Deterministic (recommended for automation)
+llm = ChatAnthropic(model='claude-sonnet-4-0', temperature=0.0)
+
+# More creative (for content generation)
+llm = ChatOpenAI(model='gpt-4.1', temperature=0.7)
+```
+
+**Recommendations:**
+- **0.0**: Deterministic, repeatable (best for automation)
+- **0.3-0.5**: Slight variation, still focused
+- **0.7-1.0**: Creative, diverse (not recommended for tasks)
+
+### Timeout Configuration
+
+The agent automatically sets timeouts based on model:
+
+```python
+# Override auto-detection
+agent = Agent(
+    task="Your task",
+    llm=llm,
+    llm_timeout=120,  # 2 minutes for slow models
+)
+```
+
+**Auto-Detected Timeouts:**
+- Gemini 3 Pro: 90s
+- Groq: 30s (fast inference)
+- O3, Claude, DeepSeek: 90s
+- Default: 75s
+
+### Vision Configuration
+
+Control how the agent uses vision:
+
+```python
+agent = Agent(
+    task="Visual task",
+    llm=llm,
+    use_vision=True,  # Always include screenshots
+    # use_vision=False,  # Never include screenshots
+    # use_vision='auto',  # Include screenshot tool, use when requested
+    vision_detail_level='high',  # 'low', 'high', 'auto'
+)
+```
+
+**Vision Modes:**
+- `True`: Always include screenshots in every step
+- `False`: Never include screenshots
+- `'auto'`: Include screenshot tool, agent requests when needed
+
+**Detail Levels:**
+- `'high'`: Full resolution (slower, more accurate)
+- `'low'`: Lower resolution (faster, less detail)
+- `'auto'`: Model decides based on content
+
+### Screenshot Optimization
+
+Resize screenshots for faster processing:
+
+```python
+agent = Agent(
+    task="Visual task",
+    llm=llm,
+    llm_screenshot_size=(1400, 850),  # Resize before sending to LLM
+)
+```
+
+**Auto-Configuration:**
+- Claude Sonnet models: (1400, 850) automatically set
+- Other models: Original viewport size
+
+<Info>
+Screenshot resizing reduces token costs and speeds up inference. Coordinates from the LLM are automatically scaled back to original size.
+</Info>
+
+## Structured Output
+
+All providers support structured output through Pydantic models:
+
+```python
+from pydantic import BaseModel
+
+class ProductInfo(BaseModel):
+    name: str
+    price: float
+    rating: float
+    in_stock: bool
+
+agent = Agent(
+    task="Extract product information",
+    llm=llm,
+    output_model_schema=ProductInfo,
+)
+
+history = await agent.run()
+
+# Access structured output
+product: ProductInfo = history.structured_output
+print(f"{product.name}: ${product.price}")
+```
+
+## Fallback LLM
+
+Configure a backup model if the primary fails:
+
+```python
+agent = Agent(
+    task="Critical task",
+    llm=ChatAnthropic(model='claude-sonnet-4-0'),
+    fallback_llm=ChatOpenAI(model='gpt-4.1-mini'),
+)
+```
+
+**When Fallback Activates:**
+- Rate limit errors
+- API connection failures
+- Model-specific errors
+
+The agent automatically switches to fallback and continues execution.
+
+## Cost Tracking
+
+Track API costs across providers:
+
+```python
+agent = Agent(
+    task="Your task",
+    llm=llm,
+    calculate_cost=True,
+)
+
+history = await agent.run()
+
+if history.usage:
+    print(f"Input tokens: {history.usage.input_tokens}")
+    print(f"Output tokens: {history.usage.output_tokens}")
+    print(f"Total cost: ${history.usage.total_cost:.4f}")
+```
+
+## Model Selection Guide
+
+<Tabs>
+  <Tab title="By Use Case">
+    **Fast & Cheap**
+    - ChatBrowserUse (recommended)
+    - ChatOpenAI('gpt-4.1-mini')
+    - ChatGoogle('gemini-flash-latest')
+    
+    **Most Capable**
+    - ChatAnthropic('claude-opus-4-0')
+    - ChatOpenAI('gpt-4.1')
+    - ChatBrowserUse()
+    
+    **Visual Tasks**
+    - ChatAnthropic('claude-sonnet-4-0') - Auto-optimized
+    - ChatBrowserUse()
+    - ChatOpenAI('gpt-4.1')
+    
+    **Local/Private**
+    - ChatOllama('llama3.1')
+    - ChatOllama('mistral')
+  </Tab>
+  
+  <Tab title="By Performance">
+    **Speed Ranking** (fastest to slowest)
+    1. ChatGroq - Ultra-fast inference
+    2. ChatBrowserUse - Optimized for browser tasks
+    3. ChatGoogle('gemini-flash')
+    4. ChatOpenAI('gpt-4.1-mini')
+    5. ChatAnthropic('claude-sonnet-4-0')
+    6. ChatOpenAI('o3-mini') - Reasoning overhead
+    
+    **Accuracy Ranking**
+    1. ChatBrowserUse - Purpose-built
+    2. ChatAnthropic('claude-opus-4-0')
+    3. ChatAnthropic('claude-sonnet-4-0')
+    4. ChatOpenAI('gpt-4.1')
+    5. ChatGoogle('gemini-3-pro-exp')
+  </Tab>
+  
+  <Tab title="By Cost">
+    **Most Cost-Effective**
+    1. ChatBrowserUse - Lowest cost per task
+    2. ChatOpenAI('gpt-4.1-mini')
+    3. ChatGoogle('gemini-flash')
+    4. ChatGroq
+    5. ChatDeepSeek
+    
+    **Premium Options**
+    1. ChatAnthropic('claude-opus-4-0')
+    2. ChatOpenAI('gpt-4.1')
+    3. ChatAnthropic('claude-sonnet-4-0')
+  </Tab>
+</Tabs>
+
+## Advanced Features
+
+### Coordinate Clicking
+
+Automatically enabled for models that support it (line 321 in `agent/service.py`):
+
+```python
+# Auto-enabled for:
+# - claude-sonnet-4
+# - claude-opus-4
+# - gemini-3-pro
+# - browser-use/* models
+
+agent = Agent(
+    task="Click task",
+    llm=ChatAnthropic(model='claude-sonnet-4-0'),
+)
+# Coordinate clicking is now available
+```
+
+With coordinate clicking, the agent can click by pixel coordinates instead of element indices.
+
+### Flash Mode
+
+Some models work better with simplified prompts:
+
+```python
+# Browser Use models automatically enable flash mode
+llm = ChatBrowserUse()
+
+agent = Agent(
+    task="Quick task",
+    llm=llm,
+    # flash_mode=True automatically set
+)
+```
+
+**Flash Mode Effects:**
+- Disables evaluation and next_goal fields
+- Disables thinking field
+- Disables planning
+- Faster execution
+
+### Page Extraction LLM
+
+Use a different model for content extraction:
+
+```python
+agent = Agent(
+    task="Complex navigation and extraction",
+    llm=ChatAnthropic(model='claude-sonnet-4-0'),  # Main agent
+    page_extraction_llm=ChatOpenAI(model='gpt-4.1-mini'),  # Faster for extraction
+)
+```
+
+<Info>
+Using a smaller model for extraction can significantly reduce costs without affecting accuracy for text extraction tasks.
+</Info>
+
+### Judge LLM
+
+Validate task completion with a separate model:
+
+```python
+agent = Agent(
+    task="Complete checkout process",
+    llm=ChatBrowserUse(),
+    use_judge=True,
+    judge_llm=ChatOpenAI(model='gpt-4.1'),  # More capable judge
+    ground_truth="Order confirmation page with order number",
+)
+```
+
+## Complete Example
+
+```python
+from browser_use import Agent, Browser, ChatBrowserUse, ChatOpenAI
+from browser_use.agent.views import MessageCompactionSettings
+from pydantic import BaseModel
+import asyncio
+
+class ProductList(BaseModel):
+    """Structured output for products."""
+    products: list[dict[str, str | float]]
+    total_found: int
+
+async def main():
+    # Configure browser
+    browser = Browser(
+        headless=False,
+        window_size={'width': 1920, 'height': 1080},
+    )
+    
+    # Configure agent with multiple models
+    agent = Agent(
+        task="""
+        Go to Amazon and search for "wireless mouse".
+        Extract the top 10 products with name, price, and rating.
+        """,
+        
+        # Primary LLM - optimized for browser tasks
+        llm=ChatBrowserUse(),
+        
+        # Extraction LLM - fast model for content extraction
+        page_extraction_llm=ChatOpenAI(model='gpt-4.1-mini'),
+        
+        # Fallback if primary fails
+        fallback_llm=ChatOpenAI(model='gpt-4.1-mini'),
+        
+        # Browser instance
+        browser=browser,
+        
+        # Structured output
+        output_model_schema=ProductList,
+        
+        # Vision settings
+        use_vision=True,
+        llm_screenshot_size=(1400, 850),
+        
+        # Performance
+        max_actions_per_step=3,
+        message_compaction=MessageCompactionSettings(enabled=True),
+        
+        # Cost tracking
+        calculate_cost=True,
+    )
+    
+    # Run agent
+    history = await agent.run(max_steps=50)
+    
+    # Results
+    print(f"✓ Completed in {history.number_of_steps()} steps")
+    
+    if history.structured_output:
+        products: ProductList = history.structured_output
+        print(f"✓ Found {products.total_found} products")
+        for p in products.products[:3]:
+            print(f"  - {p['name']}: ${p['price']}")
+    
+    if history.usage:
+        print(f"✓ Cost: ${history.usage.total_cost:.4f}")
+        print(f"✓ Tokens: {history.usage.total_tokens:,}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Rate limit errors">
+    **Solutions:**
+    - Use fallback LLM: `fallback_llm=ChatOpenAI(...)`
+    - Add retry logic with exponential backoff
+    - Switch to ChatBrowserUse for higher limits
+  </Accordion>
+  
+  <Accordion title="Timeout errors">
+    **Fix:**
+    - Increase timeout: `llm_timeout=120`
+    - Use faster model: ChatBrowserUse, ChatGroq
+    - Enable flash_mode for simpler prompts
+  </Accordion>
+  
+  <Accordion title="Vision not working">
+    **Check:**
+    - Model supports vision (not DeepSeek, Grok 3)
+    - `use_vision` is enabled
+    - Screenshots are being captured: `include_screenshot=True`
+  </Accordion>
+  
+  <Accordion title="High costs">
+    **Optimize:**
+    - Use ChatBrowserUse (lowest cost per task)
+    - Use smaller extraction LLM: `page_extraction_llm`
+    - Enable message compaction
+    - Reduce screenshot size: `llm_screenshot_size`
+    - Set max_steps limit
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Supported Models" icon="list" href="/customize/agent/supported-models">
+    Complete list of available models
+  </Card>
+  <Card title="Agent Configuration" icon="robot" href="/concepts/agents">
+    Learn about agent settings
+  </Card>
+  <Card title="Cost Optimization" icon="coins" href="/customize/agent/all-parameters">
+    Reduce API costs
+  </Card>
+  <Card title="Structured Output" icon="shapes" href="/customize/agent/output-format">
+    Extract structured data
+  </Card>
+</CardGroup>

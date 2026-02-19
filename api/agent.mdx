@@ -1,0 +1,411 @@
+---
+title: 'Agent'
+description: 'Core Agent class for browser automation'
+---
+
+The `Agent` class is the main entry point for Browser Use. It orchestrates the LLM, browser interactions, and tools to complete tasks autonomously.
+
+## Constructor
+
+```python
+from browser_use import Agent, ChatBrowserUse, Browser
+
+agent = Agent(
+    task="Find the latest news about AI",
+    llm=ChatBrowserUse(),
+    browser=Browser(headless=False),
+)
+```
+
+### Parameters
+
+<ParamField path="task" type="str" required>
+  The task description for the agent to complete.
+</ParamField>
+
+<ParamField path="llm" type="BaseChatModel" required>
+  Language model instance. Defaults to `ChatBrowserUse()` if not provided. See [Supported Models](https://docs.browser-use.com/customize/agent/supported-models).
+</ParamField>
+
+<ParamField path="browser" type="Browser | None">
+  Browser instance to use. If not provided, a new browser will be created with default settings.
+</ParamField>
+
+<ParamField path="browser_session" type="BrowserSession | None">
+  **Deprecated:** Use `browser` parameter instead. Alias for backward compatibility.
+</ParamField>
+
+<ParamField path="tools" type="Tools[Context] | None">
+  Registry of tools (actions) the agent can use. If not provided, default tools are loaded. See [Tools](https://docs.browser-use.com/customize/tools/basics).
+</ParamField>
+
+<ParamField path="controller" type="Tools[Context] | None">
+  **Deprecated:** Use `tools` parameter instead. Alias for backward compatibility.
+</ParamField>
+
+### LLM Configuration
+
+<ParamField path="page_extraction_llm" type="BaseChatModel | None">
+  Separate LLM for page content extraction. Use a smaller/faster model for efficiency. Defaults to main `llm`.
+</ParamField>
+
+<ParamField path="judge_llm" type="BaseChatModel | None">
+  LLM for judging agent trace quality. Defaults to main `llm`.
+</ParamField>
+
+<ParamField path="fallback_llm" type="BaseChatModel | None">
+  Fallback LLM to use if the primary LLM fails.
+</ParamField>
+
+### Vision & Screenshots
+
+<ParamField path="use_vision" type="bool | Literal['auto']" default="True">
+  Vision mode:
+  - `True`: Always include screenshots in LLM context
+  - `False`: Never include screenshots, excludes screenshot tool
+  - `'auto'`: Include screenshot tool but only use vision when requested
+</ParamField>
+
+<ParamField path="vision_detail_level" type="Literal['auto', 'low', 'high']" default="'auto'">
+  Screenshot detail level for vision models.
+</ParamField>
+
+<ParamField path="llm_screenshot_size" type="tuple[int, int] | None">
+  Target size `(width, height)` to resize screenshots before sending to LLM. Coordinates from LLM are automatically scaled back to original viewport size.
+</ParamField>
+
+### Skills Integration
+
+<ParamField path="skills" type="list[str | Literal['*']] | None">
+  List of skill IDs to enable, or `['*']` for all skills. Skills are pre-built actions from the cloud.
+</ParamField>
+
+<ParamField path="skill_ids" type="list[str | Literal['*']] | None">
+  **Deprecated:** Use `skills` parameter instead. Alias for backward compatibility.
+</ParamField>
+
+<ParamField path="skill_service" type="Any | None">
+  Pre-configured skill service instance for advanced use cases.
+</ParamField>
+
+### Actions & Behavior
+
+<ParamField path="initial_actions" type="list[dict[str, dict[str, Any]]] | None">
+  List of actions to execute before starting the main task (without LLM). Format: `[{'action_name': {'param': value}}]`
+</ParamField>
+
+<ParamField path="max_actions_per_step" type="int" default="5">
+  Maximum actions the agent can output per step (e.g., for form filling).
+</ParamField>
+
+<ParamField path="max_failures" type="int" default="5">
+  Maximum consecutive failures before stopping.
+</ParamField>
+
+<ParamField path="final_response_after_failure" type="bool" default="True">
+  If `True`, agent attempts one final recovery call after reaching `max_failures`.
+</ParamField>
+
+<ParamField path="use_thinking" type="bool" default="True">
+  Enable explicit reasoning steps in agent output.
+</ParamField>
+
+<ParamField path="flash_mode" type="bool" default="False">
+  Fast mode that skips evaluation, planning, and thinking. Overrides `use_thinking` and `enable_planning` when enabled.
+</ParamField>
+
+<ParamField path="directly_open_url" type="bool" default="True">
+  If `True`, automatically navigate to URLs detected in the task.
+</ParamField>
+
+### Planning
+
+<ParamField path="enable_planning" type="bool" default="True">
+  Enable agent planning with step-by-step todo items.
+</ParamField>
+
+<ParamField path="planning_replan_on_stall" type="int" default="3">
+  Number of consecutive failures before suggesting plan revision. Set to `0` to disable.
+</ParamField>
+
+<ParamField path="planning_exploration_limit" type="int" default="5">
+  Number of steps without a plan before nudging agent to create one. Set to `0` to disable.
+</ParamField>
+
+### Loop Detection
+
+<ParamField path="loop_detection_enabled" type="bool" default="True">
+  Enable detection of repetitive action patterns.
+</ParamField>
+
+<ParamField path="loop_detection_window" type="int" default="20">
+  Rolling window size for tracking action similarity.
+</ParamField>
+
+### System Messages
+
+<ParamField path="override_system_message" type="str | None">
+  Completely replace the default system prompt.
+</ParamField>
+
+<ParamField path="extend_system_message" type="str | None">
+  Add additional instructions to the default system prompt.
+</ParamField>
+
+### File & Data Management
+
+<ParamField path="save_conversation_path" type="str | Path | None">
+  Directory path to save conversation history.
+</ParamField>
+
+<ParamField path="save_conversation_path_encoding" type="str" default="'utf-8'">
+  Encoding for saved conversations.
+</ParamField>
+
+<ParamField path="available_file_paths" type="list[str] | None">
+  List of file paths the agent can access for upload actions.
+</ParamField>
+
+<ParamField path="file_system_path" type="str | None">
+  Path for agent's file system operations.
+</ParamField>
+
+<ParamField path="display_files_in_done_text" type="bool" default="True">
+  Show file information in completion messages.
+</ParamField>
+
+<ParamField path="sensitive_data" type="dict[str, str | dict[str, str]] | None">
+  Dictionary of sensitive data to handle securely. Format: `{key: value}` or `{domain: {key: value}}`.
+</ParamField>
+
+### Output Format
+
+<ParamField path="output_model_schema" type="type[AgentStructuredOutput] | None">
+  Pydantic model class for structured output validation. See [Custom Output](https://github.com/browser-use/browser-use/blob/main/examples/features/custom_output.py).
+</ParamField>
+
+<ParamField path="extraction_schema" type="dict | None">
+  JSON schema for data extraction. Auto-detected from `output_model_schema` if not provided.
+</ParamField>
+
+### Visual Output
+
+<ParamField path="generate_gif" type="bool | str" default="False">
+  Generate GIF of agent actions. Set to `True` or a file path string.
+</ParamField>
+
+<ParamField path="include_attributes" type="list[str] | None">
+  List of HTML attributes to include in DOM analysis.
+</ParamField>
+
+### Performance & Limits
+
+<ParamField path="max_history_items" type="int | None">
+  Maximum number of recent steps to keep in LLM memory. `None` keeps all steps.
+</ParamField>
+
+<ParamField path="llm_timeout" type="int" default="90">
+  Timeout in seconds for LLM calls. Auto-detected based on model.
+</ParamField>
+
+<ParamField path="step_timeout" type="int" default="180">
+  Timeout in seconds for each agent step.
+</ParamField>
+
+<ParamField path="message_compaction" type="MessageCompactionSettings | bool | None" default="True">
+  Compact old messages to reduce prompt size. Set to `False` to disable or provide `MessageCompactionSettings` for custom configuration.
+</ParamField>
+
+<ParamField path="max_clickable_elements_length" type="int" default="40000">
+  Maximum characters for clickable elements in prompt.
+</ParamField>
+
+### Judge & Validation
+
+<ParamField path="use_judge" type="bool" default="True">
+  Enable post-execution judge to validate task completion.
+</ParamField>
+
+<ParamField path="ground_truth" type="str | None">
+  Ground truth answer for judge validation.
+</ParamField>
+
+### Cloud Callbacks
+
+<ParamField path="register_new_step_callback" type="Callable | None">
+  Callback function called after each step. Signature: `(BrowserStateSummary, AgentOutput, int) -> None | Awaitable[None]`
+</ParamField>
+
+<ParamField path="register_done_callback" type="Callable | None">
+  Callback function called when agent completes. Signature: `(AgentHistoryList) -> None | Awaitable[None]`
+</ParamField>
+
+<ParamField path="register_should_stop_callback" type="Callable[[], Awaitable[bool]] | None">
+  Callback to check if agent should stop. Returns `True` to stop.
+</ParamField>
+
+<ParamField path="register_external_agent_status_raise_error_callback" type="Callable[[], Awaitable[bool]] | None">
+  Callback to check external agent status. Raises `InterruptedError` if returns `True`.
+</ParamField>
+
+### Advanced Options
+
+<ParamField path="calculate_cost" type="bool" default="False">
+  Calculate and track API token costs.
+</ParamField>
+
+<ParamField path="include_tool_call_examples" type="bool" default="False">
+  Include tool usage examples in system prompt.
+</ParamField>
+
+<ParamField path="include_recent_events" type="bool" default="False">
+  Include recent browser events in context.
+</ParamField>
+
+<ParamField path="sample_images" type="list[ContentPartTextParam | ContentPartImageParam] | None">
+  Sample images to include in prompts for vision models.
+</ParamField>
+
+<ParamField path="demo_mode" type="bool | None">
+  Enable demo mode with browser overlay UI.
+</ParamField>
+
+<ParamField path="task_id" type="str | None">
+  Custom task ID. Auto-generated if not provided.
+</ParamField>
+
+<ParamField path="injected_agent_state" type="AgentState | None">
+  Pre-existing agent state for resuming sessions.
+</ParamField>
+
+<ParamField path="source" type="str | None">
+  Source identifier for telemetry.
+</ParamField>
+
+## Methods
+
+### run()
+
+Execute the agent to complete the task.
+
+```python
+history = await agent.run(max_steps=100)
+```
+
+<ParamField path="max_steps" type="int" default="100">
+  Maximum number of steps the agent can take.
+</ParamField>
+
+<ResponseField name="return" type="AgentHistoryList">
+  Complete execution history with results, screenshots, and metadata.
+</ResponseField>
+
+### step()
+
+Execute a single step of the task.
+
+```python
+await agent.step()
+```
+
+<ParamField path="step_info" type="AgentStepInfo | None">
+  Optional step information including step number and max steps.
+</ParamField>
+
+### add_new_task()
+
+Add a follow-up task to the agent.
+
+```python
+agent.add_new_task("Now search for Python tutorials")
+```
+
+<ParamField path="new_task" type="str" required>
+  The new task description.
+</ParamField>
+
+### stop()
+
+Stop the agent execution gracefully.
+
+```python
+await agent.stop()
+```
+
+### kill()
+
+Force-stop the agent and clean up resources.
+
+```python
+await agent.kill()
+```
+
+## Properties
+
+### state
+
+<ResponseField name="state" type="AgentState">
+  Current agent state including step counter, failures, and internal state.
+</ResponseField>
+
+### history
+
+<ResponseField name="history" type="AgentHistoryList">
+  Complete history of agent actions and results.
+</ResponseField>
+
+### browser_session
+
+<ResponseField name="browser_session" type="BrowserSession">
+  The browser session instance being used.
+</ResponseField>
+
+### tools
+
+<ResponseField name="tools" type="Tools[Context]">
+  The tools registry containing all available actions.
+</ResponseField>
+
+### settings
+
+<ResponseField name="settings" type="AgentSettings">
+  Agent configuration settings.
+</ResponseField>
+
+## Example Usage
+
+```python
+import asyncio
+from browser_use import Agent, Browser, ChatBrowserUse
+
+async def main():
+    # Create agent with custom configuration
+    agent = Agent(
+        task="Research AI news and save to file",
+        llm=ChatBrowserUse(),
+        browser=Browser(headless=False),
+        max_actions_per_step=10,
+        use_vision=True,
+    )
+    
+    # Run the agent
+    history = await agent.run(max_steps=50)
+    
+    # Check results
+    if history.is_done():
+        print(f"Task completed: {history.final_result()}")
+        print(f"Success: {history.is_successful()}")
+    
+    # Access history
+    print(f"URLs visited: {history.urls()}")
+    print(f"Actions taken: {history.action_names()}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## See Also
+
+- [Agent Basics](https://docs.browser-use.com/customize/agent/basics)
+- [Agent Output Format](https://docs.browser-use.com/customize/agent/output)
+- [All Parameters](https://docs.browser-use.com/customize/agent/all-parameters)

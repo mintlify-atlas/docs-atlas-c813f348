@@ -1,0 +1,302 @@
+---
+title: 'ChatOpenAI'
+description: 'OpenAI LLM provider for Browser Use with GPT-4 and other models'
+---
+
+## Overview
+
+ChatOpenAI provides integration with OpenAI's language models including GPT-4, GPT-4 Turbo, and reasoning models like o1 and o3.
+
+## Basic Usage
+
+```python
+from browser_use import Agent, ChatOpenAI
+import asyncio
+
+async def main():
+    llm = ChatOpenAI(model='gpt-4.1-mini')
+    agent = Agent(
+        task="Find the number 1 post on Show HN",
+        llm=llm,
+    )
+    await agent.run()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## Configuration
+
+### Required Parameters
+
+<ParamField path="model" type="str" required>
+  OpenAI model to use. Common options:
+  - `gpt-4.1-mini`: Fast and cost-effective
+  - `gpt-4o`: Latest GPT-4 optimized model
+  - `gpt-4-turbo`: High performance GPT-4
+  - `o1`, `o1-pro`, `o3`, `o3-mini`: Reasoning models
+  - `gpt-5`, `gpt-5-mini`, `gpt-5-nano`: Next generation models
+</ParamField>
+
+### Model Parameters
+
+<ParamField path="temperature" type="float" default="0.2">
+  Sampling temperature (0.0 to 2.0). Lower values make output more deterministic.
+</ParamField>
+
+<ParamField path="frequency_penalty" type="float" default="0.3">
+  Penalty for token frequency (-2.0 to 2.0). Helps avoid infinite generation loops.
+</ParamField>
+
+<ParamField path="reasoning_effort" type="str" default="low">
+  Reasoning effort for reasoning models (`o1`, `o3`, etc.). Options: `low`, `medium`, `high`.
+</ParamField>
+
+<ParamField path="seed" type="int" default="None">
+  Random seed for deterministic output.
+</ParamField>
+
+<ParamField path="service_tier" type="str" default="None">
+  Service tier: `auto`, `default`, `flex`, `priority`, or `scale`.
+</ParamField>
+
+<ParamField path="top_p" type="float" default="None">
+  Nucleus sampling parameter (0.0 to 1.0).
+</ParamField>
+
+<ParamField path="max_completion_tokens" type="int" default="4096">
+  Maximum tokens in the completion.
+</ParamField>
+
+### Client Parameters
+
+<ParamField path="api_key" type="str" default="None">
+  OpenAI API key. Defaults to `OPENAI_API_KEY` environment variable.
+  
+  <Note>
+    Get your API key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+  </Note>
+</ParamField>
+
+<ParamField path="organization" type="str" default="None">
+  OpenAI organization ID.
+</ParamField>
+
+<ParamField path="project" type="str" default="None">
+  OpenAI project ID.
+</ParamField>
+
+<ParamField path="base_url" type="str" default="None">
+  Custom base URL for OpenAI-compatible APIs.
+</ParamField>
+
+<ParamField path="timeout" type="float" default="None">
+  Request timeout in seconds.
+</ParamField>
+
+<ParamField path="max_retries" type="int" default="5">
+  Maximum number of retries for failed requests.
+</ParamField>
+
+### Advanced Parameters
+
+<ParamField path="add_schema_to_system_prompt" type="bool" default="False">
+  Add JSON schema to system prompt instead of using `response_format`.
+</ParamField>
+
+<ParamField path="dont_force_structured_output" type="bool" default="False">
+  Disable forced structured output even when output_format is provided.
+</ParamField>
+
+<ParamField path="remove_min_items_from_schema" type="bool" default="False">
+  Remove `minItems` from JSON schema for provider compatibility.
+</ParamField>
+
+<ParamField path="remove_defaults_from_schema" type="bool" default="False">
+  Remove default values from JSON schema for provider compatibility.
+</ParamField>
+
+## Advanced Usage
+
+### With Reasoning Models
+
+```python
+from browser_use import Agent, ChatOpenAI
+
+# Reasoning models use different parameters
+llm = ChatOpenAI(
+    model='o1',
+    reasoning_effort='high',
+    max_completion_tokens=8192,
+    # Note: temperature and frequency_penalty are not used with reasoning models
+)
+
+agent = Agent(
+    task="Complex reasoning task",
+    llm=llm,
+)
+```
+
+### Using OpenAI-Compatible APIs
+
+```python
+from browser_use import Agent, ChatOpenAI
+
+# Connect to OpenAI-compatible endpoint
+llm = ChatOpenAI(
+    model='custom-model',
+    base_url='https://api.custom-provider.com/v1',
+    api_key='your-api-key',
+)
+
+agent = Agent(task="Your task", llm=llm)
+```
+
+### Structured Output
+
+```python
+from browser_use import Agent, ChatOpenAI
+from pydantic import BaseModel
+
+class SearchResult(BaseModel):
+    title: str
+    url: str
+    description: str
+
+llm = ChatOpenAI(model='gpt-4o')
+
+agent = Agent(
+    task="Extract search results",
+    llm=llm,
+    output_model_schema=SearchResult,
+)
+```
+
+### With Custom Headers and Query Parameters
+
+```python
+from browser_use import Agent, ChatOpenAI
+
+llm = ChatOpenAI(
+    model='gpt-4o',
+    default_headers={'X-Custom-Header': 'value'},
+    default_query={'custom_param': 'value'},
+)
+
+agent = Agent(task="Your task", llm=llm)
+```
+
+## Environment Setup
+
+```bash .env
+OPENAI_API_KEY=your_api_key_here
+# Optional
+OPENAI_ORG_ID=your_org_id
+OPENAI_PROJECT_ID=your_project_id
+```
+
+## Error Handling
+
+```python
+from browser_use import Agent, ChatOpenAI
+from browser_use.llm.exceptions import (
+    ModelProviderError,
+    ModelRateLimitError
+)
+
+try:
+    llm = ChatOpenAI(model='gpt-4o')
+    agent = Agent(task="Your task", llm=llm)
+    result = await agent.run()
+except ModelRateLimitError as e:
+    print(f"Rate limit exceeded: {e.message}")
+except ModelProviderError as e:
+    print(f"Provider error: {e.message}")
+    if e.status_code == 502:
+        print("OpenAI API returned invalid response")
+```
+
+## Properties
+
+### provider
+
+Returns the provider name: `"openai"`
+
+```python
+llm = ChatOpenAI(model='gpt-4o')
+print(llm.provider)  # "openai"
+```
+
+### name
+
+Returns the model name.
+
+```python
+llm = ChatOpenAI(model='gpt-4o')
+print(llm.name)  # "gpt-4o"
+```
+
+## Methods
+
+### get_client()
+
+Returns an `AsyncOpenAI` client instance.
+
+```python
+llm = ChatOpenAI(model='gpt-4o')
+client = llm.get_client()
+# Use client directly for advanced operations
+```
+
+### ainvoke()
+
+Asynchronously invoke the model with messages.
+
+```python
+from browser_use.llm.messages import SystemMessage, UserMessage
+
+llm = ChatOpenAI(model='gpt-4o')
+
+messages = [
+    SystemMessage(content="You are a helpful assistant"),
+    UserMessage(content="What is Browser Use?")
+]
+
+response = await llm.ainvoke(messages)
+print(response.completion)     # String response
+print(response.usage)          # Token usage
+print(response.stop_reason)    # Why generation stopped
+```
+
+#### Parameters
+
+- **messages** (`list[BaseMessage]`): List of messages
+- **output_format** (`type[T] | None`): Optional Pydantic model for structured output
+
+#### Returns
+
+`ChatInvokeCompletion[T] | ChatInvokeCompletion[str]` with:
+- `completion`: Response content
+- `usage`: Token usage (includes cached tokens for reasoning models)
+- `stop_reason`: Finish reason (`stop`, `length`, `content_filter`, etc.)
+
+## Reasoning Models
+
+Reasoning models (`o1`, `o3`, etc.) have special behavior:
+
+- **No temperature/frequency_penalty**: These parameters are automatically removed
+- **reasoning_effort**: Controls computational effort (`low`, `medium`, `high`)
+- **Token usage**: Reasoning tokens are included in completion_tokens
+
+```python
+llm = ChatOpenAI(
+    model='o3-mini',
+    reasoning_effort='high',
+)
+```
+
+## Related
+
+- [ChatBrowserUse](/api/llm/chat-browser-use) - Recommended provider
+- [ChatAnthropic](/api/llm/chat-anthropic)
+- [ChatGoogle](/api/llm/chat-google)

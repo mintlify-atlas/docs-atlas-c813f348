@@ -1,0 +1,535 @@
+---
+title: 'Browser'
+description: 'Browser session management and configuration'
+---
+
+The `Browser` class (alias for `BrowserSession`) manages browser lifecycle, configuration, and provides methods for direct browser control.
+
+<Note>
+  `Browser` is the recommended name. `BrowserSession` is the internal class name but both refer to the same class.
+</Note>
+
+## Constructor
+
+```python
+from browser_use import Browser
+
+browser = Browser(
+    headless=False,
+    window_size={'width': 1920, 'height': 1080},
+)
+```
+
+### Core Settings
+
+<ParamField path="id" type="str">
+  Unique identifier for this browser session. Auto-generated if not provided.
+</ParamField>
+
+<ParamField path="cdp_url" type="str | None">
+  CDP URL for connecting to existing browser instance (e.g., `"http://localhost:9222"`).
+</ParamField>
+
+<ParamField path="browser_profile" type="BrowserProfile | None">
+  Browser profile configuration. If not provided, direct parameters are used to create one.
+</ParamField>
+
+<ParamField path="is_local" type="bool" default="True">
+  Whether this is a local browser instance. Set to `False` for remote browsers. Auto-detected from `executable_path` or `cdp_url`.
+</ParamField>
+
+### Display & Appearance
+
+<ParamField path="headless" type="bool | None">
+  Run browser without UI. Auto-detects based on display availability. `True` = no UI, `False` = show window, `None` = auto-detect.
+</ParamField>
+
+<ParamField path="window_size" type="dict | ViewportSize">
+  Browser window size for headful mode. Format: `{'width': 1920, 'height': 1080}`
+</ParamField>
+
+<ParamField path="window_position" type="dict" default="{'width': 0, 'height': 0}">
+  Window position from top-left corner in pixels.
+</ParamField>
+
+<ParamField path="viewport" type="dict | ViewportSize">
+  Content area size. Format: `{'width': 1280, 'height': 720}`
+</ParamField>
+
+<ParamField path="no_viewport" type="bool | None">
+  Disable viewport emulation, content fits to window size.
+</ParamField>
+
+<ParamField path="device_scale_factor" type="float">
+  Device scale factor (DPI). Set to `2.0` or `3.0` for high-resolution screenshots.
+</ParamField>
+
+### Browser Behavior
+
+<ParamField path="keep_alive" type="bool | None">
+  Keep browser running after agent completes.
+</ParamField>
+
+<ParamField path="allowed_domains" type="list[str]">
+  Restrict navigation to specific domains. Domain patterns:
+  - `'example.com'` - Matches only `https://example.com/*`
+  - `'*.example.com'` - Matches `example.com` and all subdomains
+  - `'http*://example.com'` - Matches both HTTP and HTTPS
+  - `'chrome-extension://*'` - Matches Chrome extensions
+  
+  Lists with 100+ domains are automatically optimized for O(1) lookup.
+</ParamField>
+
+<ParamField path="prohibited_domains" type="list[str]">
+  Block navigation to specific domains. Uses same pattern format as `allowed_domains`. When both are set, `allowed_domains` takes precedence.
+</ParamField>
+
+<ParamField path="enable_default_extensions" type="bool" default="True">
+  Load automation extensions (uBlock Origin, cookie handlers, ClearURLs).
+</ParamField>
+
+<ParamField path="cross_origin_iframes" type="bool" default="False">
+  Enable cross-origin iframe support (may increase complexity).
+</ParamField>
+
+### User Data & Profiles
+
+<ParamField path="user_data_dir" type="str | Path | None">
+  Directory for browser profile data. Use `None` for incognito mode. Auto-generated temp directory by default.
+</ParamField>
+
+<ParamField path="profile_directory" type="str" default="'Default'">
+  Chrome profile subdirectory name (e.g., `'Profile 1'`, `'Work Profile'`).
+</ParamField>
+
+<ParamField path="storage_state" type="str | Path | dict[str, Any] | None">
+  Browser storage state (cookies, localStorage). Can be file path or dict object.
+</ParamField>
+
+### Network & Security
+
+<ParamField path="proxy" type="ProxySettings">
+  Proxy configuration. Format: `ProxySettings(server='http://host:8080', bypass='localhost', username='user', password='pass')`
+</ParamField>
+
+<ParamField path="permissions" type="list[str]" default="['clipboardReadWrite', 'notifications']">
+  Browser permissions to grant. Examples: `['camera', 'microphone', 'geolocation']`
+</ParamField>
+
+<ParamField path="headers" type="dict[str, str]">
+  Additional HTTP headers for connect requests (remote browsers only).
+</ParamField>
+
+### Browser Launch
+
+<ParamField path="executable_path" type="str | Path">
+  Path to browser executable. Platform examples:
+  - macOS: `'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'`
+  - Windows: `'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'`
+  - Linux: `'/usr/bin/google-chrome'`
+</ParamField>
+
+<ParamField path="channel" type="str">
+  Browser channel: `'chromium'`, `'chrome'`, `'chrome-beta'`, `'msedge'`, etc.
+</ParamField>
+
+<ParamField path="args" type="list[str]">
+  Additional command-line arguments. Format: `['--disable-gpu', '--custom-flag=value']`
+</ParamField>
+
+<ParamField path="env" type="dict[str, str | float | bool]">
+  Environment variables for browser process. Format: `{'DISPLAY': ':0', 'LANG': 'en_US.UTF-8'}`
+</ParamField>
+
+<ParamField path="chromium_sandbox" type="bool" default="True">
+  Enable Chromium sandboxing for security. Defaults to `False` in Docker.
+</ParamField>
+
+<ParamField path="devtools" type="bool" default="False">
+  Open DevTools panel automatically (requires `headless=False`).
+</ParamField>
+
+<ParamField path="ignore_default_args" type="list[str] | Literal[True]">
+  List of default args to disable, or `True` to disable all. Format: `['--enable-automation', '--disable-extensions']`
+</ParamField>
+
+### Timing & Performance
+
+<ParamField path="minimum_wait_page_load_time" type="float" default="0.25">
+  Minimum time to wait before capturing page state (seconds).
+</ParamField>
+
+<ParamField path="wait_for_network_idle_page_load_time" type="float" default="0.5">
+  Time to wait for network activity to cease (seconds).
+</ParamField>
+
+<ParamField path="wait_between_actions" type="float" default="0.5">
+  Time to wait between agent actions (seconds).
+</ParamField>
+
+### AI Integration
+
+<ParamField path="highlight_elements" type="bool" default="True">
+  Highlight interactive elements for AI vision.
+</ParamField>
+
+<ParamField path="dom_highlight_elements" type="bool" default="True">
+  Alternative name for `highlight_elements`.
+</ParamField>
+
+<ParamField path="paint_order_filtering" type="bool" default="True">
+  Optimize DOM tree by removing elements hidden behind others. Slightly experimental.
+</ParamField>
+
+<ParamField path="filter_highlight_ids" type="bool">
+  Filter highlight IDs from DOM output.
+</ParamField>
+
+### Downloads & Files
+
+<ParamField path="accept_downloads" type="bool" default="True">
+  Automatically accept all downloads.
+</ParamField>
+
+<ParamField path="downloads_path" type="str | Path">
+  Directory for downloaded files. Format: `'./downloads'` or `Path` object.
+</ParamField>
+
+<ParamField path="auto_download_pdfs" type="bool" default="True">
+  Automatically download PDFs instead of viewing in browser.
+</ParamField>
+
+### Device Emulation
+
+<ParamField path="user_agent" type="str">
+  Custom user agent string. Example: `'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)'`
+</ParamField>
+
+<ParamField path="screen" type="dict">
+  Screen size information. Same format as `window_size`.
+</ParamField>
+
+### Recording & Debugging
+
+<ParamField path="record_video_dir" type="str | Path">
+  Directory to save video recordings as `.mp4` files.
+</ParamField>
+
+<ParamField path="record_video_size" type="dict | ViewportSize">
+  Frame size (width, height) of video recording.
+</ParamField>
+
+<ParamField path="record_video_framerate" type="int" default="30">
+  Framerate for video recording.
+</ParamField>
+
+<ParamField path="record_har_path" type="str | Path">
+  Path to save network trace files as `.har` format.
+</ParamField>
+
+<ParamField path="traces_dir" type="str | Path">
+  Directory to save complete trace files for debugging.
+</ParamField>
+
+<ParamField path="record_har_content" type="str" default="'embed'">
+  HAR content mode: `'omit'`, `'embed'`, or `'attach'`.
+</ParamField>
+
+<ParamField path="record_har_mode" type="str" default="'full'">
+  HAR recording mode: `'full'` or `'minimal'`.
+</ParamField>
+
+### Cloud Browser
+
+<ParamField path="use_cloud" type="bool">
+  Use Browser Use cloud browser service. Requires `BROWSER_USE_API_KEY` environment variable.
+</ParamField>
+
+<ParamField path="cloud_browser" type="bool">
+  **Deprecated:** Use `use_cloud` instead. Alias for backward compatibility.
+</ParamField>
+
+<ParamField path="cloud_browser_params" type="CloudBrowserParams">
+  Cloud browser configuration parameters.
+</ParamField>
+
+<ParamField path="cloud_profile_id" type="UUID | str">
+  UUID of cloud browser profile.
+</ParamField>
+
+<ParamField path="cloud_proxy_country_code" type="ProxyCountryCode">
+  Country code for cloud proxy: `'us'`, `'uk'`, `'fr'`, `'it'`, `'jp'`, `'au'`, `'de'`, `'fi'`, `'ca'`, `'in'`
+</ParamField>
+
+<ParamField path="cloud_timeout" type="int">
+  Session timeout in minutes (free: max 15 min, paid: max 240 min).
+</ParamField>
+
+### DOM Configuration
+
+<ParamField path="max_iframes" type="int">
+  Maximum number of iframes to process.
+</ParamField>
+
+<ParamField path="max_iframe_depth" type="int">
+  Maximum iframe nesting depth.
+</ParamField>
+
+<ParamField path="cookie_whitelist_domains" type="list[str]">
+  Domains to whitelist for cookie handling.
+</ParamField>
+
+### Advanced Options
+
+<ParamField path="disable_security" type="bool" default="False">
+  ⚠️ **NOT RECOMMENDED** - Disables all browser security features.
+</ParamField>
+
+<ParamField path="deterministic_rendering" type="bool" default="False">
+  ⚠️ **NOT RECOMMENDED** - Forces consistent rendering but reduces performance.
+</ParamField>
+
+<ParamField path="demo_mode" type="bool">
+  Enable demo mode with browser overlay UI.
+</ParamField>
+
+## Methods
+
+### start()
+
+Start the browser session.
+
+```python
+await browser.start()
+```
+
+### stop()
+
+Stop the browser session without killing the process.
+
+```python
+await browser.stop()
+```
+
+### kill()
+
+Force-stop the browser and clean up all resources.
+
+```python
+await browser.kill()
+```
+
+### reset()
+
+Clear all cached CDP sessions.
+
+```python
+await browser.reset()
+```
+
+### get_browser_state_summary()
+
+Get current browser state including DOM and screenshot.
+
+```python
+state = await browser.get_browser_state_summary(
+    include_screenshot=True,
+    cached=False,
+)
+```
+
+<ParamField path="include_screenshot" type="bool" default="True">
+  Include screenshot in the state.
+</ParamField>
+
+<ParamField path="cached" type="bool" default="False">
+  Use cached state if available.
+</ParamField>
+
+<ParamField path="include_recent_events" type="bool" default="False">
+  Include recent browser events.
+</ParamField>
+
+<ResponseField name="return" type="BrowserStateSummary">
+  Complete browser state with URL, DOM, tabs, and optional screenshot.
+</ResponseField>
+
+### get_current_page()
+
+Get the current page as an Actor Page object.
+
+```python
+page = await browser.get_current_page()
+```
+
+<ResponseField name="return" type="Page | None">
+  Current page actor, or `None` if no page is open.
+</ResponseField>
+
+### get_pages()
+
+Get all open pages.
+
+```python
+pages = await browser.get_pages()
+```
+
+<ResponseField name="return" type="list[Page]">
+  List of all open page actors.
+</ResponseField>
+
+### new_page()
+
+Create a new page (tab).
+
+```python
+page = await browser.new_page(url="https://example.com")
+```
+
+<ParamField path="url" type="str | None">
+  Initial URL to navigate to. Defaults to `'about:blank'`.
+</ParamField>
+
+<ResponseField name="return" type="Page">
+  New page actor.
+</ResponseField>
+
+### close_page()
+
+Close a page by Page object or target ID.
+
+```python
+await browser.close_page(page)
+```
+
+<ParamField path="page" type="Page | str" required>
+  Page object or target ID string.
+</ParamField>
+
+### cookies()
+
+Get all browser cookies.
+
+```python
+cookies = await browser.cookies()
+```
+
+<ResponseField name="return" type="list[Cookie]">
+  List of browser cookies.
+</ResponseField>
+
+### clear_cookies()
+
+Clear all browser cookies.
+
+```python
+await browser.clear_cookies()
+```
+
+### export_storage_state()
+
+Export browser cookies and storage to storage_state format.
+
+```python
+storage = await browser.export_storage_state(
+    output_path="./storage_state.json"
+)
+```
+
+<ParamField path="output_path" type="str | Path | None">
+  Optional path to save storage_state.json.
+</ParamField>
+
+<ResponseField name="return" type="dict[str, Any]">
+  Storage state dict with cookies in Playwright format.
+</ResponseField>
+
+### set_extra_headers()
+
+Set extra HTTP headers for all requests.
+
+```python
+await browser.set_extra_headers(
+    headers={"Authorization": "Bearer token"},
+    target_id=None,
+)
+```
+
+<ParamField path="headers" type="dict[str, str]" required>
+  Dictionary of header name -> value pairs.
+</ParamField>
+
+<ParamField path="target_id" type="str | None">
+  Target to set headers on. Defaults to current focus.
+</ParamField>
+
+## Properties
+
+### cdp_client
+
+<ResponseField name="cdp_client" type="CDPClient">
+  CDP client for direct CDP communication.
+</ResponseField>
+
+### browser_profile
+
+<ResponseField name="browser_profile" type="BrowserProfile">
+  Browser profile configuration.
+</ResponseField>
+
+### agent_focus_target_id
+
+<ResponseField name="agent_focus_target_id" type="str | None">
+  Target ID of the currently focused tab.
+</ResponseField>
+
+### session_manager
+
+<ResponseField name="session_manager" type="SessionManager">
+  Session manager that owns all targets and sessions.
+</ResponseField>
+
+### downloaded_files
+
+<ResponseField name="downloaded_files" type="list[str]">
+  List of files downloaded during this session.
+</ResponseField>
+
+## Example Usage
+
+```python
+import asyncio
+from browser_use import Browser
+
+async def main():
+    # Create browser with custom configuration
+    browser = Browser(
+        headless=False,
+        window_size={'width': 1920, 'height': 1080},
+        user_data_dir='./profile',
+    )
+    
+    # Start the browser
+    await browser.start()
+    
+    # Create a new page
+    page = await browser.new_page("https://example.com")
+    
+    # Get browser state
+    state = await browser.get_browser_state_summary()
+    print(f"Current URL: {state.url}")
+    print(f"Page title: {state.title}")
+    
+    # Clean up
+    await browser.stop()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## See Also
+
+- [Browser Basics](https://docs.browser-use.com/customize/browser/basics)
+- [Browser All Parameters](https://docs.browser-use.com/customize/browser/all-parameters)
+- [Real Browser](https://docs.browser-use.com/customize/browser/real-browser)
+- [Remote Browser](https://docs.browser-use.com/customize/browser/remote-browser)

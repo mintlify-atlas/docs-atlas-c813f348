@@ -1,0 +1,304 @@
+---
+title: 'ChatAnthropic'
+description: 'Anthropic Claude LLM provider for Browser Use'
+---
+
+## Overview
+
+ChatAnthropic provides integration with Anthropic's Claude models, including Claude 3.5 Sonnet, Claude 3 Opus, and other Claude family models.
+
+## Basic Usage
+
+```python
+from browser_use import Agent, ChatAnthropic
+import asyncio
+
+async def main():
+    llm = ChatAnthropic(model='claude-sonnet-4-0', temperature=0.0)
+    agent = Agent(
+        task="Find the number 1 post on Show HN",
+        llm=llm,
+    )
+    await agent.run()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## Configuration
+
+### Required Parameters
+
+<ParamField path="model" type="str" required>
+  Claude model to use. Common options:
+  - `claude-sonnet-4-0`: Latest Claude 3.5 Sonnet
+  - `claude-3-5-sonnet-20241022`: Specific Sonnet version
+  - `claude-3-opus-20240229`: Most powerful Claude 3 model
+  - `claude-3-sonnet-20240229`: Balanced performance
+  - `claude-3-haiku-20240307`: Fast and cost-effective
+</ParamField>
+
+### Model Parameters
+
+<ParamField path="max_tokens" type="int" default="8192">
+  Maximum tokens to generate in the response.
+</ParamField>
+
+<ParamField path="temperature" type="float" default="None">
+  Sampling temperature (0.0 to 1.0). Controls randomness in responses.
+</ParamField>
+
+<ParamField path="top_p" type="float" default="None">
+  Nucleus sampling parameter (0.0 to 1.0).
+</ParamField>
+
+<ParamField path="seed" type="int" default="None">
+  Random seed for deterministic output (experimental).
+</ParamField>
+
+### Client Parameters
+
+<ParamField path="api_key" type="str" default="None">
+  Anthropic API key. Defaults to `ANTHROPIC_API_KEY` environment variable.
+  
+  <Note>
+    Get your API key at [console.anthropic.com](https://console.anthropic.com)
+  </Note>
+</ParamField>
+
+<ParamField path="auth_token" type="str" default="None">
+  Alternative authentication token.
+</ParamField>
+
+<ParamField path="base_url" type="str" default="None">
+  Custom base URL for Anthropic API.
+</ParamField>
+
+<ParamField path="timeout" type="float" default="None">
+  Request timeout in seconds or httpx.Timeout object.
+</ParamField>
+
+<ParamField path="max_retries" type="int" default="10">
+  Maximum number of retries for failed requests.
+</ParamField>
+
+<ParamField path="default_headers" type="dict" default="None">
+  Additional headers to include in all requests.
+</ParamField>
+
+<ParamField path="default_query" type="dict" default="None">
+  Additional query parameters for all requests.
+</ParamField>
+
+<ParamField path="http_client" type="httpx.AsyncClient" default="None">
+  Custom async HTTP client.
+</ParamField>
+
+## Advanced Usage
+
+### Structured Output with Tool Calling
+
+ChatAnthropic uses Claude's tool calling feature for structured outputs:
+
+```python
+from browser_use import Agent, ChatAnthropic
+from pydantic import BaseModel
+
+class Article(BaseModel):
+    title: str
+    author: str
+    date: str
+    summary: str
+
+llm = ChatAnthropic(
+    model='claude-sonnet-4-0',
+    temperature=0.0,
+)
+
+agent = Agent(
+    task="Extract article information",
+    llm=llm,
+    output_model_schema=Article,
+)
+
+result = await agent.run()
+print(result.structured_output)  # Article instance
+```
+
+### Prompt Caching
+
+Claude supports prompt caching for frequently used context:
+
+```python
+from browser_use import Agent, ChatAnthropic
+
+llm = ChatAnthropic(
+    model='claude-sonnet-4-0',
+    temperature=0.0,
+)
+
+# The agent automatically uses cache_control for system prompts
+agent = Agent(
+    task="Complex task with large context",
+    llm=llm,
+)
+```
+
+<Note>
+  Prompt caching can significantly reduce costs for repeated contexts. Cache hits are reflected in `usage.prompt_cached_tokens`.
+</Note>
+
+### Using with Custom System Prompts
+
+```python
+from browser_use import Agent, ChatAnthropic
+
+llm = ChatAnthropic(
+    model='claude-sonnet-4-0',
+    temperature=0.0,
+)
+
+agent = Agent(
+    task="Your task",
+    llm=llm,
+    extend_system_message="Additional instructions for Claude.",
+)
+```
+
+## Environment Setup
+
+```bash .env
+ANTHROPIC_API_KEY=your_api_key_here
+```
+
+## Error Handling
+
+```python
+from browser_use import Agent, ChatAnthropic
+from browser_use.llm.exceptions import (
+    ModelProviderError,
+    ModelRateLimitError
+)
+
+try:
+    llm = ChatAnthropic(model='claude-sonnet-4-0')
+    agent = Agent(task="Your task", llm=llm)
+    result = await agent.run()
+except ModelRateLimitError as e:
+    print(f"Rate limit exceeded: {e.message}")
+except ModelProviderError as e:
+    print(f"API error: {e.message}")
+    print(f"Status code: {e.status_code}")
+```
+
+## Properties
+
+### provider
+
+Returns the provider name: `"anthropic"`
+
+```python
+llm = ChatAnthropic(model='claude-sonnet-4-0')
+print(llm.provider)  # "anthropic"
+```
+
+### name
+
+Returns the model name.
+
+```python
+llm = ChatAnthropic(model='claude-sonnet-4-0')
+print(llm.name)  # "claude-sonnet-4-0"
+```
+
+## Methods
+
+### get_client()
+
+Returns an `AsyncAnthropic` client instance.
+
+```python
+llm = ChatAnthropic(model='claude-sonnet-4-0')
+client = llm.get_client()
+# Use client directly for advanced operations
+```
+
+### ainvoke()
+
+Asynchronously invoke the model with messages.
+
+```python
+from browser_use.llm.messages import SystemMessage, UserMessage
+
+llm = ChatAnthropic(model='claude-sonnet-4-0')
+
+messages = [
+    SystemMessage(content="You are a helpful assistant"),
+    UserMessage(content="What is Browser Use?")
+]
+
+response = await llm.ainvoke(messages)
+print(response.completion)     # String response
+print(response.usage)          # Token usage
+print(response.stop_reason)    # Why generation stopped
+```
+
+#### Parameters
+
+- **messages** (`list[BaseMessage]`): List of messages
+- **output_format** (`type[T] | None`): Optional Pydantic model for structured output
+
+#### Returns
+
+`ChatInvokeCompletion[T] | ChatInvokeCompletion[str]` with:
+- `completion`: Response content (string or structured output)
+- `usage`: Token usage including:
+  - `prompt_tokens`: Total input tokens (including cached)
+  - `completion_tokens`: Output tokens
+  - `prompt_cached_tokens`: Tokens retrieved from cache
+  - `prompt_cache_creation_tokens`: Tokens written to cache
+- `stop_reason`: Completion reason (`end_turn`, `max_tokens`, `stop_sequence`, `tool_use`)
+
+## Token Usage
+
+Claude's token counting is unique:
+
+```python
+response = await llm.ainvoke(messages)
+
+if response.usage:
+    print(f"Prompt tokens: {response.usage.prompt_tokens}")
+    print(f"Cached tokens: {response.usage.prompt_cached_tokens}")
+    print(f"Cache writes: {response.usage.prompt_cache_creation_tokens}")
+    print(f"Completion: {response.usage.completion_tokens}")
+```
+
+<Note>
+  Anthropic includes cached tokens in the total prompt token count. Check `prompt_cached_tokens` for actual cache hits.
+</Note>
+
+## Model Capabilities
+
+### Claude 3.5 Sonnet
+- Best balance of intelligence and speed
+- 200K token context window
+- Strong coding and analysis capabilities
+- Native vision support
+
+### Claude 3 Opus
+- Most powerful Claude model
+- Best for complex tasks
+- 200K token context window
+- Highest accuracy
+
+### Claude 3 Haiku
+- Fastest and most cost-effective
+- Great for simple tasks
+- 200K token context window
+- Instant responses
+
+## Related
+
+- [ChatBrowserUse](/api/llm/chat-browser-use) - Recommended provider
+- [ChatOpenAI](/api/llm/chat-openai)
+- [ChatGoogle](/api/llm/chat-google)

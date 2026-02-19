@@ -1,0 +1,222 @@
+---
+title: 'ChatBrowserUse'
+description: 'Browser Use optimized LLM provider with fastest performance and lowest cost'
+---
+
+## Overview
+
+ChatBrowserUse is the recommended LLM provider for Browser Use, offering the fastest and most cost-effective models specifically optimized for browser automation tasks. It achieves 3-5x faster task completion compared to standard models.
+
+<Note icon="key">
+  Get started with $10 of free LLM credits at [cloud.browser-use.com/new-api-key](https://cloud.browser-use.com/new-api-key)
+</Note>
+
+## Basic Usage
+
+```python
+from browser_use import Agent, ChatBrowserUse
+import asyncio
+
+async def main():
+    llm = ChatBrowserUse()
+    agent = Agent(
+        task="Find the number 1 post on Show HN",
+        llm=llm,
+    )
+    await agent.run()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## Configuration
+
+### Parameters
+
+<ParamField path="model" type="str" default="bu-latest">
+  Model name to use. Available options:
+  - `bu-latest` or `bu-1-0`: Default model
+  - `bu-2-0`: Latest premium model
+  - `browser-use/bu-30b-a3b-preview`: Browser Use Open Source Model
+</ParamField>
+
+<ParamField path="api_key" type="str" default="None">
+  API key for browser-use cloud. Defaults to `BROWSER_USE_API_KEY` environment variable.
+  
+  <Note>
+    Get your API key at [cloud.browser-use.com/new-api-key](https://cloud.browser-use.com/new-api-key)
+  </Note>
+</ParamField>
+
+<ParamField path="base_url" type="str" default="None">
+  Base URL for the API. Defaults to `BROWSER_USE_LLM_URL` environment variable or `https://llm.api.browser-use.com`.
+</ParamField>
+
+<ParamField path="timeout" type="float" default="120.0">
+  Request timeout in seconds.
+</ParamField>
+
+<ParamField path="max_retries" type="int" default="5">
+  Maximum number of retries for transient errors (429, 500, 502, 503, 504).
+</ParamField>
+
+<ParamField path="retry_base_delay" type="float" default="1.0">
+  Base delay in seconds for exponential backoff.
+</ParamField>
+
+<ParamField path="retry_max_delay" type="float" default="60.0">
+  Maximum delay in seconds between retries.
+</ParamField>
+
+## Advanced Usage
+
+### Custom Model Selection
+
+```python
+from browser_use import Agent, ChatBrowserUse
+
+# Use premium model
+llm = ChatBrowserUse(model='bu-2-0')
+
+# Use open source model
+llm = ChatBrowserUse(model='browser-use/bu-30b-a3b-preview')
+
+agent = Agent(
+    task="Complex browser automation task",
+    llm=llm,
+)
+```
+
+### With Session ID for Sticky Routing
+
+```python
+from browser_use import Agent, ChatBrowserUse
+
+llm = ChatBrowserUse()
+
+agent = Agent(
+    task="Task requiring session persistence",
+    llm=llm,
+)
+
+# The session_id is automatically managed by the agent
+# Same session routes to the same container for consistency
+```
+
+### Custom Base URL
+
+```python
+import os
+from browser_use import Agent, ChatBrowserUse
+
+# Set via environment variable
+os.environ['BROWSER_USE_LLM_URL'] = 'https://custom-endpoint.com'
+
+# Or set directly
+llm = ChatBrowserUse(
+    base_url='https://custom-endpoint.com',
+    api_key='your-api-key'
+)
+
+agent = Agent(task="Your task", llm=llm)
+```
+
+## Environment Setup
+
+```bash .env
+BROWSER_USE_API_KEY=your_api_key_here
+# Optional: Custom endpoint
+BROWSER_USE_LLM_URL=https://llm.api.browser-use.com
+```
+
+## Error Handling
+
+ChatBrowserUse automatically handles common errors with exponential backoff retry logic:
+
+- **Rate Limits (429)**: Automatic retry with backoff
+- **Server Errors (500, 502, 503, 504)**: Automatic retry with backoff
+- **Network Errors**: Automatic retry with backoff
+- **Authentication (401)**: Raised immediately as `ModelProviderError`
+- **Insufficient Credits (402)**: Raised immediately as `ModelProviderError`
+
+```python
+from browser_use import Agent, ChatBrowserUse
+from browser_use.llm.exceptions import ModelProviderError, ModelRateLimitError
+
+try:
+    llm = ChatBrowserUse(max_retries=3)
+    agent = Agent(task="Your task", llm=llm)
+    result = await agent.run()
+except ModelRateLimitError as e:
+    print(f"Rate limit exceeded: {e.message}")
+except ModelProviderError as e:
+    print(f"Provider error: {e.message} (Status: {e.status_code})")
+```
+
+## Properties
+
+### provider
+
+Returns the provider name: `"browser-use"`
+
+```python
+llm = ChatBrowserUse()
+print(llm.provider)  # "browser-use"
+```
+
+### name
+
+Returns the model name.
+
+```python
+llm = ChatBrowserUse(model='bu-2-0')
+print(llm.name)  # "bu-2-0"
+```
+
+## Methods
+
+### ainvoke()
+
+Asynchronously invoke the model with messages.
+
+```python
+from browser_use.llm.messages import SystemMessage, UserMessage
+
+llm = ChatBrowserUse()
+
+messages = [
+    SystemMessage(content="You are a helpful assistant"),
+    UserMessage(content="What is Browser Use?")
+]
+
+response = await llm.ainvoke(messages)
+print(response.completion)  # String response
+print(response.usage)       # Token usage information
+```
+
+#### Parameters
+
+- **messages** (`list[BaseMessage]`): List of messages to send
+- **output_format** (`type[T] | None`): Optional Pydantic model for structured output
+- **request_type** (`str`): Type of request - `"browser_agent"` or `"judge"`
+- **session_id** (`str | None`): Session ID for sticky routing (same session → same container)
+
+#### Returns
+
+`ChatInvokeCompletion[T] | ChatInvokeCompletion[str]` with:
+- `completion`: Response content (string or structured output)
+- `usage`: Token usage information (prompt_tokens, completion_tokens, total_tokens)
+
+## Why ChatBrowserUse?
+
+1. **Optimized for Browser Automation**: Models fine-tuned specifically for browser tasks
+2. **3-5x Faster**: Completes tasks significantly faster than generic models
+3. **Lowest Cost**: Most cost-effective solution for browser automation
+4. **Built-in Retry Logic**: Automatic handling of rate limits and transient errors
+5. **Easy Setup**: Simple API key configuration with $10 free credits
+
+## Related
+
+- [Getting Started](/quickstart)
+- [Supported Models](/api/llm/chat-openai)
+- [Agent Configuration](/api/agent)
