@@ -1,0 +1,409 @@
+---
+title: 'ChatAzureOpenAI'
+description: 'Azure OpenAI LLM provider for Browser Use with enterprise features'
+---
+
+## Overview
+
+ChatAzureOpenAI provides integration with Azure OpenAI Service, supporting GPT-4, GPT-5, and other OpenAI models through Microsoft Azure's enterprise-grade infrastructure. It includes support for both Chat Completions API and the newer Responses API.
+
+## Basic Usage
+
+```python
+from browser_use import Agent, ChatAzureOpenAI
+import asyncio
+
+async def main():
+    llm = ChatAzureOpenAI(
+        model='gpt-4o',
+        api_key='your_azure_api_key',
+        azure_endpoint='https://your-resource.openai.azure.com',
+        azure_deployment='your-deployment-name',
+    )
+    agent = Agent(
+        task="Find the number 1 post on Show HN",
+        llm=llm,
+    )
+    await agent.run()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## Configuration
+
+### Required Parameters
+
+<ParamField path="model" type="str" required>
+  Azure OpenAI model deployment name. Common options:
+  - `gpt-4o`: Latest GPT-4 optimized model
+  - `gpt-4-turbo`: High performance GPT-4
+  - `gpt-4.1-mini`: Fast and cost-effective
+  - `gpt-5`, `gpt-5-mini`, `gpt-5-nano`: Next generation models
+  - `gpt-5.1-codex-mini`, `gpt-5.1-codex-max`: Codex models (require Responses API)
+</ParamField>
+
+### Azure-Specific Parameters
+
+<ParamField path="api_key" type="str" default="None">
+  Azure OpenAI API key. Falls back to `AZURE_OPENAI_KEY` or `AZURE_OPENAI_API_KEY` environment variable.
+  
+  <Note>
+    Get your API key from [Azure Portal](https://portal.azure.com)
+  </Note>
+</ParamField>
+
+<ParamField path="azure_endpoint" type="str" default="None">
+  Your Azure OpenAI resource endpoint. Falls back to `AZURE_OPENAI_ENDPOINT` environment variable.
+  
+  Example: `https://your-resource.openai.azure.com`
+</ParamField>
+
+<ParamField path="azure_deployment" type="str" default="None">
+  Your Azure OpenAI deployment name. Falls back to `AZURE_OPENAI_DEPLOYMENT` environment variable.
+</ParamField>
+
+<ParamField path="api_version" type="str" default="2024-12-01-preview">
+  Azure OpenAI API version. Use `2025-03-01-preview` or later for Responses API support.
+</ParamField>
+
+<ParamField path="azure_ad_token" type="str" default="None">
+  Azure Active Directory token for authentication (alternative to API key).
+</ParamField>
+
+<ParamField path="azure_ad_token_provider" type="Any" default="None">
+  Token provider function for dynamic Azure AD authentication.
+</ParamField>
+
+<ParamField path="base_url" type="str" default="None">
+  Custom base URL (alternative to azure_endpoint).
+</ParamField>
+
+### Model Parameters
+
+<ParamField path="temperature" type="float" default="0.2">
+  Sampling temperature (0.0 to 2.0). Lower values make output more deterministic.
+</ParamField>
+
+<ParamField path="frequency_penalty" type="float" default="0.3">
+  Penalty for token frequency (-2.0 to 2.0).
+</ParamField>
+
+<ParamField path="reasoning_effort" type="str" default="low">
+  Reasoning effort for reasoning models. Options: `low`, `medium`, `high`.
+</ParamField>
+
+<ParamField path="seed" type="int" default="None">
+  Random seed for deterministic output.
+</ParamField>
+
+<ParamField path="service_tier" type="str" default="None">
+  Service tier: `auto`, `default`, `flex`, `priority`, or `scale`.
+</ParamField>
+
+<ParamField path="top_p" type="float" default="None">
+  Nucleus sampling parameter (0.0 to 1.0).
+</ParamField>
+
+<ParamField path="max_completion_tokens" type="int" default="4096">
+  Maximum tokens in the completion.
+</ParamField>
+
+### Client Parameters
+
+<ParamField path="organization" type="str" default="None">
+  Azure OpenAI organization ID.
+</ParamField>
+
+<ParamField path="timeout" type="float" default="None">
+  Request timeout in seconds.
+</ParamField>
+
+<ParamField path="max_retries" type="int" default="5">
+  Maximum number of retries for failed requests.
+</ParamField>
+
+<ParamField path="default_headers" type="dict" default="None">
+  Additional headers to include in all requests.
+</ParamField>
+
+<ParamField path="default_query" type="dict" default="None">
+  Additional query parameters for all requests.
+</ParamField>
+
+<ParamField path="http_client" type="httpx.AsyncClient" default="None">
+  Custom async HTTP client.
+</ParamField>
+
+### Responses API Parameters
+
+<ParamField path="use_responses_api" type="bool | str" default="auto">
+  Whether to use the Responses API instead of Chat Completions API.
+  - `True`: Always use Responses API
+  - `False`: Always use Chat Completions API
+  - `"auto"`: Automatically detect based on model (default)
+  
+  <Note>
+    Responses API is required for models like `gpt-5.1-codex-mini` and `computer-use-preview`.
+  </Note>
+</ParamField>
+
+### Advanced Parameters
+
+<ParamField path="add_schema_to_system_prompt" type="bool" default="False">
+  Add JSON schema to system prompt for better structured output.
+</ParamField>
+
+<ParamField path="dont_force_structured_output" type="bool" default="False">
+  Disable forced structured output even when output_format is provided.
+</ParamField>
+
+<ParamField path="remove_min_items_from_schema" type="bool" default="False">
+  Remove `minItems` from JSON schema for provider compatibility.
+</ParamField>
+
+<ParamField path="remove_defaults_from_schema" type="bool" default="False">
+  Remove default values from JSON schema.
+</ParamField>
+
+## Advanced Usage
+
+### With Azure AD Authentication
+
+```python
+from browser_use import Agent, ChatAzureOpenAI
+from azure.identity.aio import DefaultAzureCredential
+
+# Using Azure AD token provider
+async def get_azure_ad_token():
+    credential = DefaultAzureCredential()
+    token = await credential.get_token("https://cognitiveservices.azure.com/.default")
+    return token.token
+
+llm = ChatAzureOpenAI(
+    model='gpt-4o',
+    azure_endpoint='https://your-resource.openai.azure.com',
+    azure_deployment='your-deployment',
+    azure_ad_token_provider=get_azure_ad_token,
+)
+
+agent = Agent(task="Your task", llm=llm)
+```
+
+### Using Responses API
+
+```python
+from browser_use import Agent, ChatAzureOpenAI
+
+# Explicitly use Responses API for codex models
+llm = ChatAzureOpenAI(
+    model='gpt-5.1-codex-mini',
+    api_key='your_azure_api_key',
+    azure_endpoint='https://your-resource.openai.azure.com',
+    azure_deployment='codex-deployment',
+    api_version='2025-03-01-preview',  # Required for Responses API
+    use_responses_api=True,
+)
+
+agent = Agent(task="Code generation task", llm=llm)
+```
+
+<Note>
+  The Responses API is automatically used for models: `gpt-5.1-codex-mini`, `gpt-5.1-codex-max`, `gpt-5-codex`, and `computer-use-preview`.
+</Note>
+
+### Structured Output
+
+```python
+from browser_use import Agent, ChatAzureOpenAI
+from pydantic import BaseModel
+
+class CodeAnalysis(BaseModel):
+    language: str
+    complexity: str
+    suggestions: list[str]
+
+llm = ChatAzureOpenAI(
+    model='gpt-4o',
+    api_key='your_azure_api_key',
+    azure_endpoint='https://your-resource.openai.azure.com',
+    azure_deployment='your-deployment',
+)
+
+agent = Agent(
+    task="Analyze code",
+    llm=llm,
+    output_model_schema=CodeAnalysis,
+)
+
+result = await agent.run()
+print(result.structured_output)  # CodeAnalysis instance
+```
+
+### With Custom Headers
+
+```python
+from browser_use import Agent, ChatAzureOpenAI
+
+llm = ChatAzureOpenAI(
+    model='gpt-4o',
+    api_key='your_azure_api_key',
+    azure_endpoint='https://your-resource.openai.azure.com',
+    azure_deployment='your-deployment',
+    default_headers={'X-Custom-Header': 'value'},
+)
+
+agent = Agent(task="Your task", llm=llm)
+```
+
+## Environment Setup
+
+```bash .env
+AZURE_OPENAI_KEY=your_api_key_here
+# or
+AZURE_OPENAI_API_KEY=your_api_key_here
+
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
+AZURE_OPENAI_DEPLOYMENT=your-deployment-name
+```
+
+## Error Handling
+
+```python
+from browser_use import Agent, ChatAzureOpenAI
+from browser_use.llm.exceptions import (
+    ModelProviderError,
+    ModelRateLimitError
+)
+
+try:
+    llm = ChatAzureOpenAI(
+        model='gpt-4o',
+        api_key='your_azure_api_key',
+        azure_endpoint='https://your-resource.openai.azure.com',
+        azure_deployment='your-deployment',
+    )
+    agent = Agent(task="Your task", llm=llm)
+    result = await agent.run()
+except ModelRateLimitError as e:
+    print(f"Rate limit exceeded: {e.message}")
+except ModelProviderError as e:
+    print(f"Azure API error: {e.message}")
+    print(f"Status code: {e.status_code}")
+```
+
+## Properties
+
+### provider
+
+Returns the provider name: `"azure"`
+
+```python
+llm = ChatAzureOpenAI(
+    model='gpt-4o',
+    azure_endpoint='https://your-resource.openai.azure.com',
+)
+print(llm.provider)  # "azure"
+```
+
+### name
+
+Returns the model name.
+
+```python
+llm = ChatAzureOpenAI(
+    model='gpt-4o',
+    azure_endpoint='https://your-resource.openai.azure.com',
+)
+print(llm.name)  # "gpt-4o"
+```
+
+## Methods
+
+### get_client()
+
+Returns an `AsyncAzureOpenAI` client instance.
+
+```python
+llm = ChatAzureOpenAI(
+    model='gpt-4o',
+    azure_endpoint='https://your-resource.openai.azure.com',
+)
+client = llm.get_client()
+# Use client directly for advanced operations
+```
+
+### ainvoke()
+
+Asynchronously invoke the model with messages. Automatically routes between Chat Completions API and Responses API based on model.
+
+```python
+from browser_use.llm.messages import SystemMessage, UserMessage
+
+llm = ChatAzureOpenAI(
+    model='gpt-4o',
+    api_key='your_azure_api_key',
+    azure_endpoint='https://your-resource.openai.azure.com',
+    azure_deployment='your-deployment',
+)
+
+messages = [
+    SystemMessage(content="You are a helpful assistant"),
+    UserMessage(content="What is Browser Use?")
+]
+
+response = await llm.ainvoke(messages)
+print(response.completion)     # String response
+print(response.usage)          # Token usage
+print(response.stop_reason)    # Why generation stopped
+```
+
+#### Parameters
+
+- **messages** (`list[BaseMessage]`): List of messages
+- **output_format** (`type[T] | None`): Optional Pydantic model for structured output
+
+#### Returns
+
+`ChatInvokeCompletion[T] | ChatInvokeCompletion[str]` with:
+- `completion`: Response content
+- `usage`: Token usage (includes `prompt_cached_tokens` when available)
+- `stop_reason`: Finish reason
+
+## API Differences
+
+### Chat Completions API vs Responses API
+
+| Feature | Chat Completions | Responses API |
+|---------|------------------|---------------|
+| Models | Most GPT models | Codex, computer-use |
+| API Version | Any | 2025-03-01-preview+ |
+| Token Field Names | Standard | input_tokens/output_tokens |
+| Response Format | choices[0].message | output_text |
+| Auto-Detection | Default | For specific models |
+
+## Azure-Specific Features
+
+### Enterprise Security
+- Azure AD authentication support
+- Private network access with VNet
+- Managed identity integration
+- Compliance certifications
+
+### Deployment Options
+- Dedicated model deployments
+- Custom model fine-tuning
+- Multi-region availability
+- Provisioned throughput units (PTU)
+
+### Monitoring and Logging
+- Azure Monitor integration
+- Request tracing
+- Usage analytics
+- Cost management
+
+## Related
+
+- [ChatBrowserUse](/api/llm/chat-browser-use) - Recommended provider
+- [ChatOpenAI](/api/llm/chat-openai) - Standard OpenAI
+- [ChatAnthropic](/api/llm/chat-anthropic)

@@ -1,0 +1,288 @@
+---
+title: 'ChatGroq'
+description: 'Groq LLM provider for Browser Use with high-speed inference'
+---
+
+## Overview
+
+ChatGroq provides integration with Groq's lightning-fast inference platform, supporting models like Llama, Qwen, GPT-OSS, and Kimi K2.
+
+## Basic Usage
+
+```python
+from browser_use import Agent, ChatGroq
+import asyncio
+
+async def main():
+    llm = ChatGroq(
+        model='meta-llama/llama-4-maverick-17b-128e-instruct',
+        api_key='your_groq_api_key'
+    )
+    agent = Agent(
+        task="Find the number 1 post on Show HN",
+        llm=llm,
+    )
+    await agent.run()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## Configuration
+
+### Required Parameters
+
+<ParamField path="model" type="str" required>
+  Groq model to use. Verified options:
+  - `meta-llama/llama-4-maverick-17b-128e-instruct`: Latest Llama 4 with 128 experts
+  - `meta-llama/llama-4-scout-17b-16e-instruct`: Llama 4 Scout variant
+  - `qwen/qwen3-32b`: Qwen 3 32B model
+  - `moonshotai/kimi-k2-instruct`: Kimi K2 instruction model
+  - `openai/gpt-oss-20b`: GPT-OSS 20B
+  - `openai/gpt-oss-120b`: GPT-OSS 120B
+</ParamField>
+
+### Model Parameters
+
+<ParamField path="temperature" type="float" default="None">
+  Sampling temperature (0.0 to 2.0). Controls randomness in responses.
+</ParamField>
+
+<ParamField path="service_tier" type="str" default="None">
+  Service tier for request routing: `auto`, `on_demand`, or `flex`.
+</ParamField>
+
+<ParamField path="top_p" type="float" default="None">
+  Nucleus sampling parameter (0.0 to 1.0).
+</ParamField>
+
+<ParamField path="seed" type="int" default="None">
+  Random seed for deterministic output.
+</ParamField>
+
+### Client Parameters
+
+<ParamField path="api_key" type="str" default="None">
+  Groq API key. Required for authentication.
+  
+  <Note>
+    Get your free API key at [console.groq.com](https://console.groq.com)
+  </Note>
+</ParamField>
+
+<ParamField path="base_url" type="str" default="None">
+  Custom base URL for Groq API or compatible endpoints.
+</ParamField>
+
+<ParamField path="timeout" type="float" default="None">
+  Request timeout in seconds or httpx.Timeout object.
+</ParamField>
+
+<ParamField path="max_retries" type="int" default="10">
+  Maximum number of retries for failed requests. Increased default for automation reliability.
+</ParamField>
+
+## Advanced Usage
+
+### Structured Output with JSON Schema
+
+Groq supports structured output through JSON schema (for compatible models) or tool calling:
+
+```python
+from browser_use import Agent, ChatGroq
+from pydantic import BaseModel
+
+class SearchResult(BaseModel):
+    title: str
+    url: str
+    description: str
+
+llm = ChatGroq(
+    model='meta-llama/llama-4-maverick-17b-128e-instruct',
+    api_key='your_groq_api_key',
+)
+
+agent = Agent(
+    task="Extract search results",
+    llm=llm,
+    output_model_schema=SearchResult,
+)
+
+result = await agent.run()
+print(result.structured_output)  # SearchResult instance
+```
+
+<Note>
+  JSON schema mode is supported by: `llama-4-maverick`, `llama-4-scout`, `gpt-oss-20b`, and `gpt-oss-120b`. Tool calling mode is used for `kimi-k2-instruct`.
+</Note>
+
+### Custom Base URL
+
+```python
+from browser_use import Agent, ChatGroq
+
+llm = ChatGroq(
+    model='custom-model',
+    base_url='https://custom-groq-compatible.com',
+    api_key='your_api_key',
+)
+
+agent = Agent(task="Your task", llm=llm)
+```
+
+### Service Tiers
+
+```python
+from browser_use import Agent, ChatGroq
+
+# Use on-demand service tier for higher priority
+llm = ChatGroq(
+    model='meta-llama/llama-4-maverick-17b-128e-instruct',
+    api_key='your_groq_api_key',
+    service_tier='on_demand',
+)
+
+agent = Agent(task="Your task", llm=llm)
+```
+
+## Environment Setup
+
+```bash .env
+GROQ_API_KEY=your_api_key_here
+```
+
+## Error Handling
+
+```python
+from browser_use import Agent, ChatGroq
+from browser_use.llm.exceptions import (
+    ModelProviderError,
+    ModelRateLimitError
+)
+
+try:
+    llm = ChatGroq(
+        model='meta-llama/llama-4-maverick-17b-128e-instruct',
+        api_key='your_groq_api_key',
+    )
+    agent = Agent(task="Your task", llm=llm)
+    result = await agent.run()
+except ModelRateLimitError as e:
+    print(f"Rate limit exceeded: {e.message}")
+except ModelProviderError as e:
+    print(f"API error: {e.message}")
+    print(f"Status code: {e.status_code}")
+```
+
+## Properties
+
+### provider
+
+Returns the provider name: `"groq"`
+
+```python
+llm = ChatGroq(
+    model='meta-llama/llama-4-maverick-17b-128e-instruct',
+    api_key='your_groq_api_key',
+)
+print(llm.provider)  # "groq"
+```
+
+### name
+
+Returns the model name.
+
+```python
+llm = ChatGroq(
+    model='meta-llama/llama-4-maverick-17b-128e-instruct',
+    api_key='your_groq_api_key',
+)
+print(llm.name)  # "meta-llama/llama-4-maverick-17b-128e-instruct"
+```
+
+## Methods
+
+### get_client()
+
+Returns an `AsyncGroq` client instance.
+
+```python
+llm = ChatGroq(
+    model='meta-llama/llama-4-maverick-17b-128e-instruct',
+    api_key='your_groq_api_key',
+)
+client = llm.get_client()
+# Use client directly for advanced operations
+```
+
+### ainvoke()
+
+Asynchronously invoke the model with messages.
+
+```python
+from browser_use.llm.messages import SystemMessage, UserMessage
+
+llm = ChatGroq(
+    model='meta-llama/llama-4-maverick-17b-128e-instruct',
+    api_key='your_groq_api_key',
+)
+
+messages = [
+    SystemMessage(content="You are a helpful assistant"),
+    UserMessage(content="What is Browser Use?")
+]
+
+response = await llm.ainvoke(messages)
+print(response.completion)     # String response
+print(response.usage)          # Token usage
+print(response.stop_reason)    # Why generation stopped
+```
+
+#### Parameters
+
+- **messages** (`list[BaseMessage]`): List of messages
+- **output_format** (`type[T] | None`): Optional Pydantic model for structured output
+
+#### Returns
+
+`ChatInvokeCompletion[T] | ChatInvokeCompletion[str]` with:
+- `completion`: Response content (string or structured output)
+- `usage`: Token usage including:
+  - `prompt_tokens`: Input tokens
+  - `completion_tokens`: Output tokens
+  - `total_tokens`: Total tokens used
+- `stop_reason`: Not available from Groq API
+
+<Note>
+  Groq doesn't support cached tokens - `prompt_cached_tokens` is always `None`.
+</Note>
+
+## Model Capabilities
+
+### JSON Schema Models
+These models support native JSON schema for structured output:
+- `meta-llama/llama-4-maverick-17b-128e-instruct`
+- `meta-llama/llama-4-scout-17b-16e-instruct`
+- `openai/gpt-oss-20b`
+- `openai/gpt-oss-120b`
+
+### Tool Calling Models
+These models use tool calling for structured output:
+- `moonshotai/kimi-k2-instruct`
+
+### General Purpose
+All models support regular text completion for general tasks.
+
+## Performance
+
+Groq is known for extremely fast inference speeds:
+- Lightning-fast token generation
+- High throughput for production workloads
+- Excellent for real-time applications
+- Generous free tier for testing
+
+## Related
+
+- [ChatBrowserUse](/api/llm/chat-browser-use) - Recommended provider
+- [ChatOpenAI](/api/llm/chat-openai)
+- [ChatAnthropic](/api/llm/chat-anthropic)

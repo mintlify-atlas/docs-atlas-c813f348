@@ -1,0 +1,316 @@
+---
+title: 'ChatMistral'
+description: 'Mistral AI LLM provider for Browser Use'
+---
+
+## Overview
+
+ChatMistral provides integration with Mistral AI's language models, including Mistral Large, Mistral Medium, and Mistral Small with optimized schema sanitization for reliable structured outputs.
+
+## Basic Usage
+
+```python
+from browser_use import Agent, ChatMistral
+import asyncio
+
+async def main():
+    llm = ChatMistral(
+        model='mistral-medium-latest',
+        api_key='your_mistral_api_key'
+    )
+    agent = Agent(
+        task="Find the number 1 post on Show HN",
+        llm=llm,
+    )
+    await agent.run()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## Configuration
+
+### Required Parameters
+
+<ParamField path="model" type="str" default="mistral-medium-latest">
+  Mistral model to use. Common options:
+  - `mistral-medium-latest`: Balanced performance (default)
+  - `mistral-large`: Most powerful Mistral model
+  - `mistral-small`: Fast and cost-effective
+  - Or any other Mistral model identifier
+</ParamField>
+
+### Model Parameters
+
+<ParamField path="temperature" type="float" default="0.2">
+  Sampling temperature (0.0 to 1.0). Controls randomness in responses.
+</ParamField>
+
+<ParamField path="top_p" type="float" default="None">
+  Nucleus sampling parameter (0.0 to 1.0).
+</ParamField>
+
+<ParamField path="max_tokens" type="int" default="4096">
+  Maximum tokens to generate. Mistral uses `max_tokens` (not `max_completion_tokens`).
+</ParamField>
+
+<ParamField path="seed" type="int" default="None">
+  Random seed for deterministic output.
+</ParamField>
+
+<ParamField path="safe_prompt" type="bool" default="False">
+  Enable Mistral's safe prompt mode for content filtering.
+</ParamField>
+
+### Client Parameters
+
+<ParamField path="api_key" type="str" default="None">
+  Mistral API key. Falls back to `MISTRAL_API_KEY` environment variable.
+  
+  <Note>
+    Get your API key at [console.mistral.ai](https://console.mistral.ai)
+  </Note>
+</ParamField>
+
+<ParamField path="base_url" type="str" default="https://api.mistral.ai/v1">
+  Base URL for Mistral API. Can be overridden with `MISTRAL_BASE_URL` environment variable.
+</ParamField>
+
+<ParamField path="timeout" type="float" default="None">
+  Request timeout in seconds or httpx.Timeout object.
+</ParamField>
+
+<ParamField path="max_retries" type="int" default="5">
+  Maximum number of retries for failed requests.
+</ParamField>
+
+<ParamField path="default_headers" type="dict" default="None">
+  Additional headers to include in all requests.
+</ParamField>
+
+<ParamField path="default_query" type="dict" default="None">
+  Additional query parameters for all requests.
+</ParamField>
+
+<ParamField path="http_client" type="httpx.AsyncClient" default="None">
+  Custom async HTTP client instance.
+</ParamField>
+
+## Advanced Usage
+
+### Structured Output with JSON Schema
+
+ChatMistral uses Mistral's native JSON schema support with automatic schema optimization:
+
+```python
+from browser_use import Agent, ChatMistral
+from pydantic import BaseModel
+
+class Product(BaseModel):
+    name: str
+    price: float
+    description: str
+    in_stock: bool
+
+llm = ChatMistral(
+    model='mistral-large',
+    api_key='your_mistral_api_key',
+)
+
+agent = Agent(
+    task="Extract product information",
+    llm=llm,
+    output_model_schema=Product,
+)
+
+result = await agent.run()
+print(result.structured_output)  # Product instance
+```
+
+<Note>
+  ChatMistral includes automatic schema sanitization to ensure compatibility with Mistral's JSON schema requirements.
+</Note>
+
+### Custom Base URL
+
+```python
+from browser_use import Agent, ChatMistral
+
+llm = ChatMistral(
+    model='mistral-medium-latest',
+    base_url='https://custom-mistral-endpoint.com/v1',
+    api_key='your_api_key',
+)
+
+agent = Agent(task="Your task", llm=llm)
+```
+
+### Safe Prompt Mode
+
+```python
+from browser_use import Agent, ChatMistral
+
+llm = ChatMistral(
+    model='mistral-medium-latest',
+    api_key='your_mistral_api_key',
+    safe_prompt=True,  # Enable content filtering
+)
+
+agent = Agent(task="Your task", llm=llm)
+```
+
+### Custom Headers and Query Parameters
+
+```python
+from browser_use import Agent, ChatMistral
+
+llm = ChatMistral(
+    model='mistral-medium-latest',
+    api_key='your_mistral_api_key',
+    default_headers={'X-Custom-Header': 'value'},
+    default_query={'custom_param': 'value'},
+)
+
+agent = Agent(task="Your task", llm=llm)
+```
+
+## Environment Setup
+
+```bash .env
+MISTRAL_API_KEY=your_api_key_here
+# Optional: Custom base URL
+MISTRAL_BASE_URL=https://api.mistral.ai/v1
+```
+
+## Error Handling
+
+```python
+from browser_use import Agent, ChatMistral
+from browser_use.llm.exceptions import (
+    ModelProviderError,
+    ModelRateLimitError
+)
+
+try:
+    llm = ChatMistral(
+        model='mistral-medium-latest',
+        api_key='your_mistral_api_key',
+    )
+    agent = Agent(task="Your task", llm=llm)
+    result = await agent.run()
+except ModelRateLimitError as e:
+    print(f"Rate limit exceeded: {e.message}")
+    print(f"Status code: {e.status_code}")
+except ModelProviderError as e:
+    print(f"API error: {e.message}")
+    print(f"Status code: {e.status_code}")
+```
+
+## Properties
+
+### provider
+
+Returns the provider name: `"mistral"`
+
+```python
+llm = ChatMistral(
+    model='mistral-medium-latest',
+    api_key='your_mistral_api_key',
+)
+print(llm.provider)  # "mistral"
+```
+
+### name
+
+Returns the model name.
+
+```python
+llm = ChatMistral(
+    model='mistral-medium-latest',
+    api_key='your_mistral_api_key',
+)
+print(llm.name)  # "mistral-medium-latest"
+```
+
+## Methods
+
+### ainvoke()
+
+Asynchronously invoke the model with messages.
+
+```python
+from browser_use.llm.messages import SystemMessage, UserMessage
+
+llm = ChatMistral(
+    model='mistral-medium-latest',
+    api_key='your_mistral_api_key',
+)
+
+messages = [
+    SystemMessage(content="You are a helpful assistant"),
+    UserMessage(content="What is Browser Use?")
+]
+
+response = await llm.ainvoke(messages)
+print(response.completion)     # String response
+print(response.usage)          # Token usage
+```
+
+#### Parameters
+
+- **messages** (`list[BaseMessage]`): List of messages
+- **output_format** (`type[T] | None`): Optional Pydantic model for structured output
+
+#### Returns
+
+`ChatInvokeCompletion[T] | ChatInvokeCompletion[str]` with:
+- `completion`: Response content (string or structured output)
+- `usage`: Token usage including:
+  - `prompt_tokens`: Input tokens
+  - `completion_tokens`: Output tokens
+  - `total_tokens`: Total tokens used
+- `stop_reason`: Not exposed by Mistral implementation
+
+## Implementation Details
+
+### Direct HTTP API
+
+ChatMistral uses direct HTTP requests instead of the official SDK for better control:
+- Custom retry logic with httpx transport
+- Automatic schema sanitization for Mistral compatibility
+- Flexible message content handling (string and list formats)
+- Custom error parsing for better error messages
+
+### Schema Optimization
+
+The implementation includes `MistralSchemaOptimizer` that:
+- Ensures strict JSON schema compatibility
+- Removes unsupported schema features
+- Optimizes nested object structures
+- Validates schema before sending to API
+
+## Model Capabilities
+
+### Mistral Large
+- Most powerful Mistral model
+- Best for complex reasoning tasks
+- Strong multilingual support
+- Excellent code generation
+
+### Mistral Medium
+- Balanced performance and cost
+- Good for general tasks
+- Fast inference speed
+- Recommended default
+
+### Mistral Small
+- Fastest and most cost-effective
+- Great for simple tasks
+- High throughput
+- Low latency
+
+## Related
+
+- [ChatBrowserUse](/api/llm/chat-browser-use) - Recommended provider
+- [ChatOpenAI](/api/llm/chat-openai)
+- [ChatAnthropic](/api/llm/chat-anthropic)

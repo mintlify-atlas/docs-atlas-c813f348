@@ -1,0 +1,488 @@
+---
+title: 'CodeAgent'
+description: 'Jupyter-like code execution agent for browser automation'
+---
+
+The `CodeAgent` provides a Jupyter notebook-like interface where the LLM writes Python code that gets executed in a persistent namespace with browser control functions available.
+
+## Overview
+
+Unlike the standard `Agent` which uses predefined actions, `CodeAgent` gives the LLM the ability to write and execute Python code directly. This provides more flexibility for complex automation tasks that require custom logic, data processing, or multi-step workflows.
+
+## Basic Example
+
+```python
+from browser_use import ChatBrowserUse
+from browser_use.code_use.service import CodeAgent
+import asyncio
+
+async def main():
+    agent = CodeAgent(
+        task="Go to news.ycombinator.com and extract the top 5 story titles",
+        llm=ChatBrowserUse(),
+    )
+    
+    result = await agent.run()
+    print(result)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## Constructor
+
+### CodeAgent
+
+<ParamField path="task" type="str" required>
+  The task description for the agent to complete.
+</ParamField>
+
+<ParamField path="llm" type="BaseChatModel | None">
+  The language model to use. If not provided, defaults to `ChatBrowserUse()`. 
+  
+  **Note:** CodeAgent currently only works with `ChatBrowserUse`.
+</ParamField>
+
+<ParamField path="browser" type="BrowserSession | None">
+  Browser session instance. If not provided, a new browser will be created automatically.
+</ParamField>
+
+<ParamField path="tools" type="Tools | None">
+  Custom tools registry. If not provided, uses default `CodeAgentTools()` which includes browser control functions.
+</ParamField>
+
+<ParamField path="page_extraction_llm" type="BaseChatModel | None">
+  Separate LLM model for page content extraction. Useful for using a faster/cheaper model for extraction.
+</ParamField>
+
+<ParamField path="file_system" type="FileSystem | None">
+  File system instance for file operations. Defaults to `FileSystem(base_dir='./')`.
+</ParamField>
+
+<ParamField path="available_file_paths" type="list[str] | None">
+  List of file paths the agent can access.
+</ParamField>
+
+<ParamField path="sensitive_data" type="dict[str, str | dict[str, str]] | None">
+  Dictionary containing sensitive data that should be handled carefully.
+</ParamField>
+
+<ParamField path="max_steps" type="int" default="100">
+  Maximum number of execution steps before terminating.
+</ParamField>
+
+<ParamField path="max_failures" type="int" default="8">
+  Maximum consecutive errors before auto-termination.
+</ParamField>
+
+<ParamField path="max_validations" type="int" default="0">
+  Maximum number of times to run the validator agent to verify task completion.
+</ParamField>
+
+<ParamField path="use_vision" type="bool" default="True">
+  Whether to include screenshots in LLM messages for visual context.
+</ParamField>
+
+<ParamField path="calculate_cost" type="bool" default="False">
+  Whether to calculate and track token costs.
+</ParamField>
+
+<ParamField path="demo_mode" type="bool | None">
+  Enable the in-browser demo panel for live logging and visualization.
+</ParamField>
+
+## Methods
+
+### run
+
+Execute the agent to complete the task.
+
+```python
+result = await agent.run(max_steps=100)
+```
+
+<ParamField path="max_steps" type="int | None">
+  Optional override for maximum number of steps. Uses constructor value if not provided.
+</ParamField>
+
+**Returns:** `NotebookSession` - A notebook session containing all executed code cells, outputs, and browser states.
+
+### close
+
+Close the browser session.
+
+```python
+await agent.close()
+```
+
+## How CodeAgent Differs from Agent
+
+### Agent (Standard)
+
+- Uses predefined actions (click, type, navigate, etc.)
+- LLM selects actions from a fixed set
+- Structured, predictable behavior
+- Best for straightforward automation tasks
+
+### CodeAgent
+
+- LLM writes custom Python code
+- Full programming flexibility
+- Access to Python libraries (json, csv, re, etc.)
+- Persistent namespace across cells
+- Best for complex logic, data processing, custom workflows
+
+## Available Functions in Namespace
+
+The CodeAgent executes code in a namespace with browser control functions available:
+
+### Browser Navigation
+
+```python
+await navigate("https://example.com")
+await back()
+await refresh()
+```
+
+### Element Interaction
+
+```python
+await click(index)        # Click element by index
+await type_text(text)     # Type into focused element
+await input_text(index, text)  # Click element then type
+await scroll(direction="down", amount=500)
+```
+
+### Information Retrieval
+
+```python
+state = await get_state()  # Get browser state with elements
+title = await get_title()
+html = await get_html()
+text = await get_text(index)
+```
+
+### JavaScript Execution
+
+```python
+result = await evaluate("document.title")
+```
+
+### Task Completion
+
+```python
+await done(result="Task completed", success=True)
+```
+
+<Info>
+The `done()` function must be called to mark the task as complete. Without it, the agent will continue until max_steps is reached.
+</Info>
+
+## Code Execution Features
+
+### Persistent Namespace
+
+Variables persist across code cells, just like Jupyter notebooks:
+
+```python
+# Cell 1
+data = []
+
+# Cell 2 (can access data from Cell 1)
+data.append({"title": "Example"})
+
+# Cell 3
+print(len(data))  # Prints: 1
+```
+
+### Top-Level Await
+
+You can use `await` at the top level without wrapping in async functions:
+
+```python
+# This works in CodeAgent
+result = await navigate("https://example.com")
+state = await get_state()
+```
+
+### Multiple Code Block Types
+
+The LLM can generate multiple types of code blocks:
+
+````markdown
+```python
+# Python code gets executed
+data = await extract("Get product names")
+```
+
+```js
+// JavaScript code is stored in namespace as 'js' variable
+document.querySelectorAll('.product')
+```
+
+```bash
+# Bash code stored as 'bash' variable
+ls -la
+```
+````
+
+Non-Python blocks are injected as string variables in the namespace for reference.
+
+## Result Object
+
+The `run()` method returns a `NotebookSession` object:
+
+```python
+result = await agent.run()
+
+# Access notebook cells
+for cell in result.cells:
+    print(f"Cell {cell.execution_count}: {cell.status}")
+    print(f"Code: {cell.source}")
+    print(f"Output: {cell.output}")
+    print(f"Error: {cell.error}")
+
+# Get complete history with metadata
+history = result._complete_history  # List[CodeAgentHistory]
+
+# Get usage summary
+usage = result._usage_summary
+print(f"Total tokens: {usage.total_tokens}")
+print(f"Total cost: {usage.total_cost}")
+```
+
+### NotebookSession Properties
+
+- `cells` - List of executed code cells with outputs
+- `execution_count` - Current execution count
+- `_complete_history` - Complete execution history with metadata
+- `_usage_summary` - Token usage and cost summary
+
+### Cell Properties
+
+- `source` - The Python code that was executed
+- `output` - Captured stdout output
+- `error` - Error message if execution failed
+- `status` - Execution status: `SUCCESS`, `ERROR`, or `RUNNING`
+- `execution_count` - Cell execution number
+- `browser_state` - Browser state text at time of execution
+- `cell_type` - Cell type: `CODE` or `MARKDOWN`
+
+## Advanced Examples
+
+### Data Extraction with Processing
+
+```python
+async def extract_and_process():
+    agent = CodeAgent(
+        task="""
+        1. Go to news.ycombinator.com
+        2. Extract the top 10 story titles and URLs
+        3. Filter for stories about AI
+        4. Save to ai_stories.json
+        """,
+        llm=ChatBrowserUse(),
+    )
+    
+    result = await agent.run(max_steps=50)
+    return result
+```
+
+The agent will write code similar to:
+
+```python
+import json
+
+# Navigate and extract
+await navigate("https://news.ycombinator.com")
+stories = await extract("Get top 10 story titles and URLs as JSON array")
+
+# Process with Python
+stories = json.loads(stories)
+ai_stories = [s for s in stories if 'ai' in s['title'].lower()]
+
+# Save to file
+with open('ai_stories.json', 'w') as f:
+    json.dump(ai_stories, f, indent=2)
+
+await done(f"Found {len(ai_stories)} AI stories", success=True)
+```
+
+### Form Filling with Validation
+
+```python
+async def fill_form():
+    agent = CodeAgent(
+        task="""
+        Fill out the contact form at https://example.com/contact:
+        - Name: John Doe
+        - Email: john@example.com
+        - Message: Test message
+        Then verify the success message appears.
+        """,
+        llm=ChatBrowserUse(),
+        sensitive_data={
+            "email": "john@example.com"
+        }
+    )
+    
+    result = await agent.run()
+    return result
+```
+
+### Multi-Page Workflow
+
+```python
+async def complex_workflow():
+    agent = CodeAgent(
+        task="""
+        1. Search for 'Python tutorials' on Google
+        2. Open the first 3 results in new tabs
+        3. Extract the main heading from each page
+        4. Create a summary comparing the three tutorials
+        """,
+        llm=ChatBrowserUse(),
+        use_vision=True,  # Use screenshots for better understanding
+    )
+    
+    result = await agent.run(max_steps=100)
+    return result
+```
+
+## Error Handling
+
+### Consecutive Error Limit
+
+The agent tracks consecutive errors and terminates after `max_failures` (default: 8):
+
+```python
+agent = CodeAgent(
+    task="Your task",
+    llm=ChatBrowserUse(),
+    max_failures=5,  # Terminate after 5 consecutive errors
+)
+```
+
+### Validation
+
+Enable task completion validation to ensure the agent actually completed the task:
+
+```python
+agent = CodeAgent(
+    task="Extract product data",
+    llm=ChatBrowserUse(),
+    max_validations=2,  # Validate up to 2 times
+)
+```
+
+If validation fails, the agent receives feedback and continues working.
+
+## Best Practices
+
+### 1. Clear Task Descriptions
+
+Be specific about what you want:
+
+```python
+# ✅ Good
+task = "Go to example.com, click the login button, enter credentials, and verify successful login"
+
+# ❌ Too vague
+task = "Login to website"
+```
+
+### 2. Use Sensitive Data Parameter
+
+Keep credentials safe:
+
+```python
+agent = CodeAgent(
+    task="Login to website",
+    sensitive_data={
+        "username": "user@example.com",
+        "password": "secret123"
+    }
+)
+```
+
+### 3. Enable Vision for Visual Tasks
+
+```python
+agent = CodeAgent(
+    task="Verify the layout looks correct",
+    use_vision=True,  # LLM can see screenshots
+)
+```
+
+### 4. Set Appropriate Limits
+
+```python
+agent = CodeAgent(
+    task="Simple task",
+    max_steps=20,        # Prevent excessive execution
+    max_failures=3,      # Fail fast on repeated errors
+)
+```
+
+### 5. Track Costs
+
+```python
+agent = CodeAgent(
+    task="Your task",
+    calculate_cost=True,  # Track token usage and costs
+)
+
+result = await agent.run()
+print(f"Total cost: ${result._usage_summary.total_cost}")
+```
+
+## Comparison with Standard Agent
+
+| Feature | Agent | CodeAgent |
+|---------|-------|------------|
+| **Execution Model** | Predefined actions | Custom Python code |
+| **Flexibility** | Fixed action set | Full Python capabilities |
+| **Data Processing** | Limited | Full Python libraries |
+| **Learning Curve** | Easier to understand | Requires Python knowledge |
+| **Predictability** | More predictable | Less predictable |
+| **Use Cases** | Standard automation | Complex workflows |
+| **LLM Support** | Multiple LLMs | ChatBrowserUse only |
+
+## Troubleshooting
+
+### Agent Doesn't Call done()
+
+Make sure your task is clear about when to finish:
+
+```python
+task = "Extract data and call done() with the results"
+```
+
+### Variables Not Persisting
+
+Variables should persist automatically. If they don't, check for:
+- Syntax errors in code
+- Scope issues with function definitions
+
+### Browser State Not Updating
+
+The browser state is fetched before each LLM call. If you need to force a refresh:
+
+```python
+state = await get_state()  # Force state refresh
+```
+
+### Token Limit Errors
+
+If you hit token limits:
+
+1. Reduce `max_steps`
+2. Use `page_extraction_llm` with a smaller model
+3. Disable `use_vision` if screenshots aren't needed
+
+## Related Documentation
+
+- [Agent Basics](/api/agent/basics) - Standard agent with predefined actions
+- [Browser API](/api/browser/basics) - Browser configuration options
+- [Tools](/api/tools/basics) - Custom tool development
+- [Going to Production](/production) - Deploy agents at scale

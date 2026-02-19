@@ -50,7 +50,8 @@
               "guides/authentication",
               "guides/data-extraction",
               "guides/prompting",
-              "guides/production"
+              "guides/production",
+              "guides/cli"
             ]
           },
           {
@@ -74,7 +75,8 @@
               "api/agent",
               "api/browser",
               "api/tools",
-              "api/action-result"
+              "api/action-result",
+              "api/code-agent"
             ]
           },
           {
@@ -84,7 +86,11 @@
               "api/llm/chat-openai",
               "api/llm/chat-anthropic",
               "api/llm/chat-google",
-              "api/llm/chat-ollama"
+              "api/llm/chat-ollama",
+              "api/llm/chat-groq",
+              "api/llm/chat-mistral",
+              "api/llm/chat-azure-openai",
+              "api/llm/chat-vercel"
             ]
           },
           {

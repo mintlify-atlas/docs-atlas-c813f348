@@ -1,0 +1,438 @@
+---
+title: 'ChatVercel'
+description: 'Vercel AI Gateway LLM provider with unified access to multiple AI models'
+---
+
+## Overview
+
+ChatVercel provides access to Vercel AI Gateway, an OpenAI-compatible API that routes requests to multiple LLM providers including OpenAI, Anthropic, Google, Meta, Mistral, Cohere, DeepSeek, xAI, and more. It includes features like rate limiting, caching, and monitoring.
+
+## Basic Usage
+
+```python
+from browser_use import Agent, ChatVercel
+import asyncio
+
+async def main():
+    llm = ChatVercel(
+        model='openai/gpt-4o',
+        api_key='your_vercel_api_key'
+    )
+    agent = Agent(
+        task="Find the number 1 post on Show HN",
+        llm=llm,
+    )
+    await agent.run()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## Configuration
+
+### Required Parameters
+
+<ParamField path="model" type="str" required>
+  Model identifier in format `provider/model`. Available providers and models:
+  
+  **OpenAI:**
+  - `openai/gpt-4o`, `openai/gpt-4.1-mini`, `openai/gpt-5`, `openai/o3-mini`
+  
+  **Anthropic:**
+  - `anthropic/claude-sonnet-4.5`, `anthropic/claude-opus-4.1`, `anthropic/claude-haiku-4.5`
+  
+  **Google:**
+  - `google/gemini-2.5-flash`, `google/gemini-2.5-pro`
+  
+  **Meta:**
+  - `meta/llama-4-maverick`, `meta/llama-4-scout`, `meta/llama-3.3-70b`
+  
+  **Mistral:**
+  - `mistral/magistral-medium`, `mistral/mistral-large`, `mistral/codestral`
+  
+  **DeepSeek:**
+  - `deepseek/deepseek-v3.2-exp`, `deepseek/deepseek-r1`
+  
+  **xAI:**
+  - `xai/grok-4`, `xai/grok-3-mini-fast`
+  
+  And many more - see full list in source code.
+</ParamField>
+
+### Model Parameters
+
+<ParamField path="temperature" type="float" default="None">
+  Sampling temperature (0.0 to 2.0). Controls randomness in responses.
+</ParamField>
+
+<ParamField path="max_tokens" type="int" default="None">
+  Maximum tokens to generate.
+</ParamField>
+
+<ParamField path="top_p" type="float" default="None">
+  Nucleus sampling parameter (0.0 to 1.0).
+</ParamField>
+
+<ParamField path="reasoning_models" type="list[str]" default="['o1', 'o3', 'o4', 'gpt-oss', 'deepseek-r1', 'qwen3-next-80b-a3b-thinking']">
+  List of reasoning model patterns that require prompt-based JSON extraction instead of native structured output.
+</ParamField>
+
+### Client Parameters
+
+<ParamField path="api_key" type="str" default="None">
+  Vercel API key for authentication.
+  
+  <Note>
+    Get your API key from [Vercel Dashboard](https://vercel.com/dashboard)
+  </Note>
+</ParamField>
+
+<ParamField path="base_url" type="str" default="https://ai-gateway.vercel.sh/v1">
+  Vercel AI Gateway endpoint URL.
+</ParamField>
+
+<ParamField path="timeout" type="float" default="None">
+  Request timeout in seconds or httpx.Timeout object.
+</ParamField>
+
+<ParamField path="max_retries" type="int" default="5">
+  Maximum number of retries for failed requests.
+</ParamField>
+
+<ParamField path="default_headers" type="dict" default="None">
+  Additional headers to include in all requests.
+</ParamField>
+
+<ParamField path="default_query" type="dict" default="None">
+  Additional query parameters for all requests.
+</ParamField>
+
+<ParamField path="http_client" type="httpx.AsyncClient" default="None">
+  Custom async HTTP client instance.
+</ParamField>
+
+### Gateway-Specific Parameters
+
+<ParamField path="provider_options" type="dict" default="None">
+  Provider routing options for the AI Gateway. Use this to control which providers are used and in what order.
+  
+  Example:
+  ```python
+  provider_options={
+      'gateway': {
+          'order': ['vertex', 'anthropic'],  # Try Vertex AI first, then Anthropic
+          'retries': 3
+      }
+  }
+  ```
+</ParamField>
+
+## Advanced Usage
+
+### Provider Routing
+
+Control which providers handle your requests:
+
+```python
+from browser_use import Agent, ChatVercel
+
+# Route through specific providers in order
+llm = ChatVercel(
+    model='openai/gpt-4o',
+    api_key='your_vercel_api_key',
+    provider_options={
+        'gateway': {
+            'order': ['vertex', 'anthropic', 'openai'],
+            'retries': 3
+        }
+    }
+)
+
+agent = Agent(task="Your task", llm=llm)
+```
+
+### Structured Output
+
+Automatic structured output with provider-specific optimizations:
+
+```python
+from browser_use import Agent, ChatVercel
+from pydantic import BaseModel
+
+class NewsArticle(BaseModel):
+    headline: str
+    summary: str
+    author: str
+    published_date: str
+
+llm = ChatVercel(
+    model='openai/gpt-4o',
+    api_key='your_vercel_api_key',
+)
+
+agent = Agent(
+    task="Extract news article",
+    llm=llm,
+    output_model_schema=NewsArticle,
+)
+
+result = await agent.run()
+print(result.structured_output)  # NewsArticle instance
+```
+
+<Note>
+  ChatVercel automatically handles different structured output methods:
+  - **OpenAI models**: Native JSON schema
+  - **Anthropic models**: Prompt-based extraction
+  - **Google models**: Gemini-optimized schema
+  - **Reasoning models**: Prompt-based extraction
+</Note>
+
+### Multiple Providers
+
+Access different providers through the same interface:
+
+```python
+from browser_use import ChatVercel
+
+# OpenAI
+openai_llm = ChatVercel(
+    model='openai/gpt-4o',
+    api_key='your_vercel_api_key',
+)
+
+# Anthropic
+anthropic_llm = ChatVercel(
+    model='anthropic/claude-sonnet-4.5',
+    api_key='your_vercel_api_key',
+)
+
+# Google
+google_llm = ChatVercel(
+    model='google/gemini-2.5-flash',
+    api_key='your_vercel_api_key',
+)
+
+# Meta Llama
+meta_llm = ChatVercel(
+    model='meta/llama-4-maverick',
+    api_key='your_vercel_api_key',
+)
+```
+
+### Reasoning Models
+
+```python
+from browser_use import Agent, ChatVercel
+
+# Use OpenAI o3-mini reasoning model
+llm = ChatVercel(
+    model='openai/o3-mini',
+    api_key='your_vercel_api_key',
+)
+
+agent = Agent(
+    task="Complex reasoning task",
+    llm=llm,
+)
+```
+
+## Environment Setup
+
+```bash .env
+VERCEL_API_KEY=your_api_key_here
+```
+
+## Error Handling
+
+```python
+from browser_use import Agent, ChatVercel
+from browser_use.llm.exceptions import (
+    ModelProviderError,
+    ModelRateLimitError
+)
+
+try:
+    llm = ChatVercel(
+        model='openai/gpt-4o',
+        api_key='your_vercel_api_key',
+    )
+    agent = Agent(task="Your task", llm=llm)
+    result = await agent.run()
+except ModelRateLimitError as e:
+    print(f"Rate limit exceeded: {e.message}")
+except ModelProviderError as e:
+    print(f"Gateway error: {e.message}")
+    print(f"Status code: {e.status_code}")
+```
+
+## Properties
+
+### provider
+
+Returns the provider name: `"vercel"`
+
+```python
+llm = ChatVercel(
+    model='openai/gpt-4o',
+    api_key='your_vercel_api_key',
+)
+print(llm.provider)  # "vercel"
+```
+
+### name
+
+Returns the model identifier.
+
+```python
+llm = ChatVercel(
+    model='openai/gpt-4o',
+    api_key='your_vercel_api_key',
+)
+print(llm.name)  # "openai/gpt-4o"
+```
+
+## Methods
+
+### get_client()
+
+Returns an `AsyncOpenAI` client configured for Vercel AI Gateway.
+
+```python
+llm = ChatVercel(
+    model='openai/gpt-4o',
+    api_key='your_vercel_api_key',
+)
+client = llm.get_client()
+# Use client directly for advanced operations
+```
+
+### ainvoke()
+
+Asynchronously invoke the model with messages.
+
+```python
+from browser_use.llm.messages import SystemMessage, UserMessage
+
+llm = ChatVercel(
+    model='openai/gpt-4o',
+    api_key='your_vercel_api_key',
+)
+
+messages = [
+    SystemMessage(content="You are a helpful assistant"),
+    UserMessage(content="What is Browser Use?")
+]
+
+response = await llm.ainvoke(messages)
+print(response.completion)     # String response
+print(response.usage)          # Token usage
+print(response.stop_reason)    # Why generation stopped
+```
+
+#### Parameters
+
+- **messages** (`list[BaseMessage]`): List of messages
+- **output_format** (`type[T] | None`): Optional Pydantic model for structured output
+
+#### Returns
+
+`ChatInvokeCompletion[T] | ChatInvokeCompletion[str]` with:
+- `completion`: Response content
+- `usage`: Token usage including:
+  - `prompt_tokens`: Input tokens
+  - `completion_tokens`: Output tokens
+  - `total_tokens`: Total tokens used
+  - `prompt_cached_tokens`: Cached tokens (when available)
+- `stop_reason`: Completion reason
+
+## Gateway Features
+
+### Rate Limiting
+- Built-in rate limiting across providers
+- Automatic request queuing
+- Configurable limits per model
+
+### Caching
+- Response caching for repeated requests
+- Reduced latency and costs
+- Automatic cache invalidation
+
+### Monitoring
+- Request tracing and analytics
+- Performance metrics
+- Error tracking
+- Usage statistics
+
+### Provider Fallback
+- Automatic fallback to alternative providers
+- High availability
+- Load balancing
+
+## Schema Optimization
+
+### Provider-Specific Handling
+
+ChatVercel automatically optimizes schemas for different providers:
+
+**Gemini Models:**
+- Removes `additionalProperties`
+- Resolves `$ref` references
+- Handles empty object types
+- Cleans unsupported properties
+
+**Anthropic Models:**
+- Prompt-based JSON extraction
+- Custom schema instructions
+- Markdown code block parsing
+
+**Reasoning Models:**
+- Prompt-based extraction
+- No native structured output
+- JSON validation and cleanup
+
+## Supported Models
+
+The implementation supports 150+ models across providers:
+
+- **OpenAI**: GPT-4o, GPT-5, o3-mini, o4-mini
+- **Anthropic**: Claude Sonnet 4.5, Opus 4.1, Haiku 4.5
+- **Google**: Gemini 2.5 Flash, Gemini 2.5 Pro
+- **Meta**: Llama 4 Maverick, Llama 4 Scout, Llama 3.3
+- **Mistral**: Magistral, Mistral Large, Codestral
+- **DeepSeek**: DeepSeek v3.2, DeepSeek R1
+- **xAI**: Grok 4, Grok 3 Mini
+- **Cohere**: Command A, Command R+
+- **Amazon**: Nova Pro, Nova Lite
+- And many more...
+
+See the source code for the complete list of available models.
+
+## Benefits
+
+### Unified Interface
+- Single API for multiple providers
+- Consistent error handling
+- Standardized token counting
+
+### Cost Optimization
+- Route to cheapest available provider
+- Automatic caching reduces costs
+- Pay only for what you use
+
+### Reliability
+- Built-in retries and fallbacks
+- High availability
+- Enterprise-grade infrastructure
+
+### Flexibility
+- Easy provider switching
+- A/B testing different models
+- Multi-provider redundancy
+
+## Related
+
+- [ChatBrowserUse](/api/llm/chat-browser-use) - Recommended provider
+- [ChatOpenAI](/api/llm/chat-openai)
+- [ChatAnthropic](/api/llm/chat-anthropic)
+- [ChatGoogle](/api/llm/chat-google)

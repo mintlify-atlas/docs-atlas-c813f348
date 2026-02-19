@@ -1,0 +1,902 @@
+---
+title: 'CLI Reference'
+description: 'Complete command reference for the browser-use CLI'
+---
+
+The Browser Use CLI provides fast, persistent browser automation from the command line. The CLI uses a session server architecture where the browser stays open between commands for instant response times (~50ms).
+
+## Installation
+
+<Steps>
+  <Step title="Install Browser Use">
+    ```bash
+    uv pip install browser-use
+    ```
+  </Step>
+  
+  <Step title="Install Chromium">
+    ```bash
+    browser-use install
+    ```
+    
+    Installs Chromium browser with system dependencies (Linux only).
+  </Step>
+  
+  <Step title="Verify Installation">
+    ```bash
+    browser-use doctor
+    ```
+    
+    Checks your installation and validates dependencies.
+  </Step>
+</Steps>
+
+## Setup Commands
+
+### install
+
+Installs Chromium browser with system dependencies.
+
+```bash
+browser-use install
+```
+
+- On Linux: Installs with `--with-deps` flag for system dependencies
+- On macOS/Windows: Installs Chromium only (no system dependencies needed)
+
+### init
+
+Generates template files to get started quickly.
+
+<CodeGroup>
+```bash Interactive
+browser-use init
+```
+
+```bash Specific Template
+browser-use init --template basic
+```
+
+```bash Custom Path
+browser-use init --output my_script.py
+```
+
+```bash Force Overwrite
+browser-use init --force
+```
+</CodeGroup>
+
+**Options:**
+- `--template, -t` - Template name (interactive if not specified)
+- `--output, -o` - Output file path
+- `--force, -f` - Overwrite existing files
+- `--list, -l` - List available templates
+
+### setup
+
+Configures browser-use for first-time use.
+
+```bash
+browser-use setup
+```
+
+**Options:**
+- `--mode` - Setup mode: `local`, `remote`, or `full` (default: `local`)
+- `--api-key` - Browser-Use API key
+- `--yes, -y` - Skip interactive prompts
+
+### doctor
+
+Validates installation and checks dependencies.
+
+```bash
+browser-use doctor
+```
+
+Returns health check results for:
+- Python version
+- Browser installation
+- API key configuration
+- Network connectivity
+
+## Navigation Commands
+
+### open
+
+Navigate to a URL.
+
+```bash
+browser-use open https://example.com
+```
+
+Automatically starts the browser if not already running.
+
+### back
+
+Go back in browser history.
+
+```bash
+browser-use back
+```
+
+### scroll
+
+Scroll the page up or down.
+
+<CodeGroup>
+```bash Scroll Down
+browser-use scroll down
+```
+
+```bash Scroll Up
+browser-use scroll up
+```
+
+```bash Custom Amount
+browser-use scroll down --amount 1000
+```
+</CodeGroup>
+
+**Options:**
+- `direction` - `up` or `down` (default: `down`)
+- `--amount` - Scroll amount in pixels (default: `500`)
+
+## Inspection Commands
+
+### state
+
+Get browser state including URL, title, and clickable elements.
+
+```bash
+browser-use state
+```
+
+Returns:
+- Current URL
+- Page title
+- List of interactive elements with indices
+- Element types (button, input, link, etc.)
+
+### screenshot
+
+Take a screenshot of the current page.
+
+<CodeGroup>
+```bash Save to File
+browser-use screenshot output.png
+```
+
+```bash Base64 Output
+browser-use screenshot
+```
+
+```bash Full Page
+browser-use screenshot --full page.png
+```
+</CodeGroup>
+
+**Options:**
+- `path` - Save path (outputs base64 if not provided)
+- `--full` - Capture full page instead of viewport
+
+## Interaction Commands
+
+### click
+
+Click an element by its index from the state command.
+
+```bash
+browser-use click 5
+```
+
+### type
+
+Type text into the currently focused element.
+
+```bash
+browser-use type "Hello World"
+```
+
+### input
+
+Click an element by index, then type text into it.
+
+```bash
+browser-use input 3 "john@example.com"
+```
+
+Equivalent to: `click 3` + `type "john@example.com"`
+
+### keys
+
+Send keyboard keys or key combinations.
+
+<CodeGroup>
+```bash Single Key
+browser-use keys "Enter"
+```
+
+```bash Key Combination
+browser-use keys "Control+a"
+```
+
+```bash Tab Navigation
+browser-use keys "Tab Tab Enter"
+```
+</CodeGroup>
+
+### select
+
+Select a dropdown option.
+
+```bash
+browser-use select 4 "option-value"
+```
+
+### hover
+
+Hover over an element.
+
+```bash
+browser-use hover 7
+```
+
+### dblclick
+
+Double-click an element.
+
+```bash
+browser-use dblclick 2
+```
+
+### rightclick
+
+Right-click an element.
+
+```bash
+browser-use rightclick 5
+```
+
+## Tab Management
+
+### switch
+
+Switch to a different tab by index.
+
+```bash
+browser-use switch 1
+```
+
+### close-tab
+
+Close a tab.
+
+<CodeGroup>
+```bash Close Current Tab
+browser-use close-tab
+```
+
+```bash Close Specific Tab
+browser-use close-tab 2
+```
+</CodeGroup>
+
+## Cookie Management
+
+### cookies get
+
+Get all cookies or cookies for a specific URL.
+
+<CodeGroup>
+```bash All Cookies
+browser-use cookies get
+```
+
+```bash Filter by URL
+browser-use cookies get --url https://example.com
+```
+</CodeGroup>
+
+### cookies set
+
+Set a cookie with options.
+
+```bash
+browser-use cookies set name value --domain .example.com --secure --same-site Strict
+```
+
+**Options:**
+- `--domain` - Cookie domain
+- `--path` - Cookie path (default: `/`)
+- `--secure` - Mark as secure cookie
+- `--http-only` - Mark as HTTP-only
+- `--same-site` - SameSite attribute: `Strict`, `Lax`, or `None`
+- `--expires` - Expiration timestamp
+
+### cookies clear
+
+Clear cookies.
+
+<CodeGroup>
+```bash Clear All
+browser-use cookies clear
+```
+
+```bash Clear for URL
+browser-use cookies clear --url https://example.com
+```
+</CodeGroup>
+
+### cookies export
+
+Export cookies to a JSON file.
+
+```bash
+browser-use cookies export cookies.json
+```
+
+### cookies import
+
+Import cookies from a JSON file.
+
+```bash
+browser-use cookies import cookies.json
+```
+
+## Wait Commands
+
+### wait selector
+
+Wait for a CSS selector to appear or disappear.
+
+<CodeGroup>
+```bash Wait for Element
+browser-use wait selector "button.submit"
+```
+
+```bash Wait for Hidden
+browser-use wait selector ".loading" --state hidden
+```
+
+```bash Custom Timeout
+browser-use wait selector "h1" --timeout 5000
+```
+</CodeGroup>
+
+**Options:**
+- `--timeout` - Timeout in milliseconds (default: `30000`)
+- `--state` - Element state: `attached`, `detached`, `visible`, or `hidden` (default: `visible`)
+
+### wait text
+
+Wait for text to appear on the page.
+
+```bash
+browser-use wait text "Success"
+```
+
+## Information Retrieval
+
+### get title
+
+Get the page title.
+
+```bash
+browser-use get title
+```
+
+### get html
+
+Get page HTML.
+
+<CodeGroup>
+```bash Full Page
+browser-use get html
+```
+
+```bash Specific Element
+browser-use get html --selector "h1"
+```
+</CodeGroup>
+
+### get text
+
+Get text content of an element.
+
+```bash
+browser-use get text 5
+```
+
+### get value
+
+Get value of an input element.
+
+```bash
+browser-use get value 3
+```
+
+### get attributes
+
+Get all attributes of an element.
+
+```bash
+browser-use get attributes 7
+```
+
+### get bbox
+
+Get element bounding box (x, y, width, height).
+
+```bash
+browser-use get bbox 4
+```
+
+## JavaScript & Data Extraction
+
+### eval
+
+Execute custom JavaScript code.
+
+```bash
+browser-use eval "document.title"
+```
+
+### extract
+
+Extract data using LLM (requires API key).
+
+```bash
+browser-use extract "Extract all product names from this page"
+```
+
+## Python Execution
+
+Execute Python code with persistent namespace.
+
+<CodeGroup>
+```bash Inline Code
+browser-use python "x = 42"
+browser-use python "print(x)"  # Prints: 42
+```
+
+```bash From File
+browser-use python --file script.py
+```
+
+```bash Show Variables
+browser-use python --vars
+```
+
+```bash Reset Namespace
+browser-use python --reset
+```
+</CodeGroup>
+
+The `browser` object is available in the Python namespace for browser interactions.
+
+## Agent Tasks
+
+Run AI-powered browser automation tasks.
+
+### Local Mode
+
+```bash
+browser-use run "Fill the contact form with test data"
+```
+
+**Options:**
+- `--max-steps` - Maximum steps
+- `--llm` - LLM model (e.g., `gpt-4o`, `claude-sonnet-4-20250514`)
+
+Requires: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or other LLM provider API key
+
+### Remote Mode (Cloud)
+
+```bash
+browser-use -b remote run "Search for AI news"
+```
+
+**Cloud Options:**
+- `--session-id` - Reuse existing cloud session
+- `--proxy-country` - Proxy country code (e.g., `us`, `uk`, `gb`)
+- `--stream` - Stream output in real-time
+- `--wait` - Wait for completion (default: async)
+- `--flash` - Enable fast mode
+- `--keep-alive` - Keep session alive after task
+- `--thinking` - Enable extended reasoning
+- `--vision` - Enable vision (default)
+- `--no-vision` - Disable vision
+- `--profile` - Use cloud profile ID
+- `--start-url` - Start from specific URL
+- `--allowed-domain` - Restrict navigation (repeatable)
+- `--metadata` - Task metadata as `KEY=VALUE` (repeatable)
+- `--secret` - Task secrets as `KEY=VALUE` (repeatable)
+- `--skill-id` - Enable skill IDs (repeatable)
+- `--structured-output` - JSON schema for structured output
+- `--judge` - Enable judge mode
+- `--judge-ground-truth` - Expected answer for evaluation
+
+Requires: `BROWSER_USE_API_KEY`
+
+## Task Management (Remote)
+
+### task list
+
+List recent cloud tasks.
+
+```bash
+browser-use task list
+```
+
+**Options:**
+- `--limit` - Maximum tasks to list (default: `10`)
+- `--status` - Filter by status: `running`, `finished`, `stopped`, `failed`
+- `--session` - Filter by session ID
+
+### task status
+
+Get task status and details.
+
+<CodeGroup>
+```bash Default View
+browser-use task status task-123
+```
+
+```bash Compact
+browser-use task status task-123 -c
+```
+
+```bash Verbose
+browser-use task status task-123 -v
+```
+
+```bash Last N Steps
+browser-use task status task-123 --last 5
+```
+
+```bash Specific Step
+browser-use task status task-123 --step 3
+```
+
+```bash Reverse Order
+browser-use task status task-123 --reverse
+```
+</CodeGroup>
+
+### task stop
+
+Stop a running task.
+
+```bash
+browser-use task stop task-123
+```
+
+### task logs
+
+Get task execution logs.
+
+```bash
+browser-use task logs task-123
+```
+
+## Cloud Session Management
+
+### session list
+
+List cloud sessions.
+
+```bash
+browser-use session list
+```
+
+**Options:**
+- `--limit` - Maximum sessions (default: `10`)
+- `--status` - Filter by status: `active`, `stopped`
+
+### session get
+
+Get session details including live URL.
+
+```bash
+browser-use session get sess-456
+```
+
+### session stop
+
+Stop cloud session(s).
+
+<CodeGroup>
+```bash Stop One
+browser-use session stop sess-456
+```
+
+```bash Stop All
+browser-use session stop --all
+```
+</CodeGroup>
+
+### session create
+
+Create a new cloud session.
+
+```bash
+browser-use session create --profile prof-123 --proxy-country us
+```
+
+**Options:**
+- `--profile` - Cloud profile ID
+- `--proxy-country` - Proxy country code
+- `--start-url` - Initial URL
+- `--screen-size` - Screen size (e.g., `1920x1080`)
+- `--keep-alive` - Keep session alive
+- `--persist-memory` - Persist memory between tasks
+
+### session share
+
+Create or delete public share URL.
+
+<CodeGroup>
+```bash Create Share
+browser-use session share sess-456
+```
+
+```bash Delete Share
+browser-use session share sess-456 --delete
+```
+</CodeGroup>
+
+## Tunnels
+
+Expose local dev servers via Cloudflare tunnels.
+
+### tunnel start
+
+```bash
+browser-use tunnel 3000
+```
+
+Returns a public URL like `https://abc.trycloudflare.com`
+
+### tunnel list
+
+List active tunnels.
+
+```bash
+browser-use tunnel list
+```
+
+### tunnel stop
+
+Stop tunnel(s).
+
+<CodeGroup>
+```bash Stop One
+browser-use tunnel stop 3000
+```
+
+```bash Stop All
+browser-use tunnel stop --all
+```
+</CodeGroup>
+
+## Profile Management
+
+### Local Profiles (`-b real`)
+
+<CodeGroup>
+```bash List Profiles
+browser-use -b real profile list
+```
+
+```bash View Cookies
+browser-use -b real profile cookies Default
+```
+
+```bash Sync to Cloud
+browser-use -b real profile sync --from Default
+```
+
+```bash Sync Specific Domain
+browser-use -b real profile sync --from Default --domain youtube.com
+```
+</CodeGroup>
+
+### Cloud Profiles (`-b remote`)
+
+<CodeGroup>
+```bash List
+browser-use -b remote profile list
+```
+
+```bash Get Details
+browser-use -b remote profile get prof-123
+```
+
+```bash Create
+browser-use -b remote profile create --name "My Profile"
+```
+
+```bash Update
+browser-use -b remote profile update prof-123 --name "New Name"
+```
+
+```bash Delete
+browser-use -b remote profile delete prof-123
+```
+</CodeGroup>
+
+## Local Session Management
+
+### sessions
+
+List active local sessions.
+
+```bash
+browser-use sessions
+```
+
+### close
+
+Close browser session.
+
+<CodeGroup>
+```bash Close Current
+browser-use close
+```
+
+```bash Close All
+browser-use close --all
+```
+</CodeGroup>
+
+### server commands
+
+Manage the session server.
+
+<CodeGroup>
+```bash Check Status
+browser-use server status
+```
+
+```bash Stop Server
+browser-use server stop
+```
+
+```bash View Logs
+browser-use server logs
+```
+</CodeGroup>
+
+## Global Options
+
+These options work with any command:
+
+- `--session NAME` - Use named session (default: `default`)
+- `--browser MODE` - Browser mode: `chromium`, `real`, or `remote`
+- `--headed` - Show browser window (default: headless)
+- `--profile NAME` - Browser profile (local name or cloud ID)
+- `--json` - Output as JSON
+- `--api-key KEY` - Override API key
+- `--mcp` - Run as MCP server via stdin/stdout
+
+## Browser Modes
+
+### Chromium (Default)
+
+Headless Chromium browser.
+
+```bash
+browser-use open https://example.com
+```
+
+### Real Browser
+
+Use your actual Chrome browser with existing logins.
+
+```bash
+browser-use --browser real open https://gmail.com
+```
+
+### Remote (Cloud)
+
+Cloud browser with anti-detection features.
+
+```bash
+browser-use --browser remote open https://example.com
+```
+
+Requires: `BROWSER_USE_API_KEY`
+
+## Persistent Sessions
+
+The CLI uses a session server architecture where the browser stays open between commands:
+
+```bash
+# Start session (default name: "default")
+browser-use open https://example.com
+
+# Reuses same browser
+browser-use state
+browser-use click 5
+
+# Close when done
+browser-use close
+```
+
+### Multiple Sessions
+
+Run multiple browsers in parallel:
+
+```bash
+browser-use --session work open https://work.example.com
+browser-use --session personal open https://personal.example.com
+
+browser-use --session work state
+browser-use --session personal state
+
+browser-use close --all
+```
+
+## Examples
+
+### Form Filling
+
+```bash
+browser-use open https://example.com/contact
+browser-use state
+# Shows: [0] input "Name", [1] input "Email", [2] button "Submit"
+browser-use input 0 "John Doe"
+browser-use input 1 "john@example.com"
+browser-use click 2
+```
+
+### Data Extraction
+
+```bash
+browser-use open https://news.ycombinator.com
+browser-use eval "Array.from(document.querySelectorAll('.titleline a')).slice(0,5).map(a => a.textContent)"
+```
+
+### Cloud Agent with Session Reuse
+
+```bash
+# Start task, keep session alive
+browser-use -b remote run "Log into example.com" --keep-alive --wait
+# → task_id: task-123, session_id: sess-456
+
+# Check status
+browser-use task status task-123
+
+# Run another task in same session (preserves login)
+browser-use -b remote run "Go to settings" --session-id sess-456
+```
+
+## Troubleshooting
+
+### Session server won't start
+
+```bash
+browser-use close --all
+browser-use server stop
+```
+
+### View server logs
+
+```bash
+browser-use server logs
+```
+
+### Check installation
+
+```bash
+browser-use doctor
+```
+
+## How It Works
+
+The CLI uses a background session server:
+
+1. First command starts a server (browser stays open)
+2. Commands communicate via Unix socket (TCP on Windows)
+3. ~50ms latency instead of waiting for browser startup
+4. Server auto-starts when needed, stops with `browser-use server stop`
